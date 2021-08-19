@@ -59,18 +59,22 @@ pub enum LiquityInstruction {
         lamports: u64
     },
 
-    /// Borrow money
+    /// Close Trove
     ///
     ///
     /// Accounts expected:
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Trove account
-    CloseBorrow {
-        // To prevent front running
-        borrow_amount: u64,
-        lamports: u64
-    }
+    CloseTrove {},
+
+    /// Liquidate Trove
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    LiquidateTrove {},
 }
 
 
@@ -91,12 +95,10 @@ impl LiquityInstruction {
                 }
             },
             1 => {
-                let (borrow_amount, rest) = Self::unpack_u64(rest)?;
-                let (lamports, _rest) = Self::unpack_u64(rest)?;
-                Self::CloseBorrow {
-                    borrow_amount,
-                    lamports
-                }
+                Self::CloseTrove {}
+            },
+            2 => {
+                Self::LiquidateTrove {}
             },
             _ => return Err(InvalidInstruction.into()),
         })

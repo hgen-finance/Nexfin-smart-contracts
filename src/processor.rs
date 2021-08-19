@@ -34,17 +34,45 @@ impl Processor {
                 msg!("Instruction Borrow");
                 Self::process_borrow(accounts, borrow_amount, lamports, program_id)
             }
-            LiquityInstruction::CloseBorrow {borrow_amount, lamports} => {
-                msg!("Instruction Close Borrow");
-                Self::process_close_borrow(accounts, borrow_amount, lamports, program_id)
+            LiquityInstruction::CloseTrove {} => {
+                msg!("Instruction Close Trove");
+                Self::process_close_trove(accounts, program_id)
+            }
+            LiquityInstruction::LiquidateTrove {} => {
+                msg!("Instruction Liquidate Trove");
+                Self::process_liquidate_trove(accounts, program_id)
             }
         }
     }
 
-    fn process_close_borrow(
+    fn process_liquidate_trove(
         accounts: &[AccountInfo],
-        borrow_amount: u64,
-        lamports: u64,
+        program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let liquidator = next_account_info(accounts_info_iter)?;
+
+        if !liquidator.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let trove_account = next_account_info(accounts_info_iter)?;
+
+        let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
+        if trove.is_liquidated {
+            return Err(LiquityError::TroveAlreadyLiquidated.into());
+        }
+
+        trove.is_liquidated = true;
+
+        Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
+
+        Ok(())
+    }
+
+    fn process_close_trove(
+        accounts: &[AccountInfo],
         program_id: &Pubkey,
     ) -> ProgramResult
     {
