@@ -31,6 +31,14 @@ pub enum LiquityError {
     #[error("Trove Already Liquidated")]
     TroveAlreadyLiquidated,
 
+    /// Trove Is Not Initialized
+    #[error("Trove Is Not Initialized")]
+    TroveIsNotInitialized,
+
+    /// Only For Trove Owner
+    #[error("Only For Trove Owner")]
+    OnlyForTroveOwner,
+
     // 0
     /// Invalid instruction data passed in.
     #[error("Failed to unpack instruction data")]
