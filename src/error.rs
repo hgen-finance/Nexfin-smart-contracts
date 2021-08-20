@@ -39,6 +39,10 @@ pub enum LiquityError {
     #[error("Only For Trove Owner")]
     OnlyForTroveOwner,
 
+    /// Only For Deposit Owner
+    #[error("Only For Deposit Owner")]
+    OnlyForDepositOwner,
+
     // 0
     /// Invalid instruction data passed in.
     #[error("Failed to unpack instruction data")]

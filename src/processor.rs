@@ -8,12 +8,11 @@ use solana_program::{
     pubkey::Pubkey,
     sysvar::{rent::Rent, Sysvar},
 };
-use solana_program::log::{sol_log_64, sol_log_compute_units};
 use solana_program::system_instruction::create_account;
 use spl_token::state::Account as TokenAccount;
 
 use crate::{error::LiquityError, helpers, instruction::LiquityInstruction, state::Escrow};
-use crate::state::{Trove};
+use crate::state::{Trove, Deposit};
 use std::ops::{Sub, Add};
 
 pub struct Processor;
@@ -51,7 +50,122 @@ impl Processor {
                 msg!("Instruction Add Coin");
                 Self::process_add_coin(accounts, amount, program_id)
             }
+            LiquityInstruction::AddDeposit {amount} => {
+                msg!("Instruction Add Deposit");
+                Self::process_add_deposit(accounts, amount, program_id)
+            }
+            LiquityInstruction::WithdrawDeposit {amount} => {
+                msg!("Instruction Withdraw Deposit");
+                Self::process_withdraw_deposit(accounts, amount, program_id)
+            }
+            LiquityInstruction::ClaimDepositReward {} => {
+                msg!("Instruction Claim Deposit Reward");
+                Self::process_claim_deposit_reward(accounts, program_id)
+            }
         }
+    }
+
+    fn process_claim_deposit_reward(
+        accounts: &[AccountInfo],
+        program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let depositor = next_account_info(accounts_info_iter)?;
+
+        if !depositor.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let deposit_account = next_account_info(accounts_info_iter)?;
+
+        let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
+
+        if deposit.owner != *depositor.key {
+            return Err(LiquityError::OnlyForDepositOwner.into());
+        }
+
+        deposit.reward_governance_token_amount = 0;
+        deposit.reward_token_amount = 0;
+        deposit.reward_coin_amount = 0;
+
+        Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
+
+        Ok(())
+    }
+
+    fn process_withdraw_deposit(
+        accounts: &[AccountInfo],
+        amount: u64,
+        program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let depositor = next_account_info(accounts_info_iter)?;
+
+        if !depositor.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let deposit_account = next_account_info(accounts_info_iter)?;
+
+        let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
+
+        if deposit.owner != *depositor.key {
+            return Err(LiquityError::OnlyForDepositOwner.into());
+        }
+
+        if amount > deposit.token_amount {
+            return Err(LiquityError::InsufficientLiquidity.into());
+        }
+
+        deposit.token_amount = deposit.token_amount.sub(amount);
+
+        Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
+
+        Ok(())
+    }
+
+    fn process_add_deposit(
+        accounts: &[AccountInfo],
+        amount: u64,
+        program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let depositor = next_account_info(accounts_info_iter)?;
+
+        if !depositor.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let deposit_account = next_account_info(accounts_info_iter)?;
+
+        let rent = &Rent::from_account_info(next_account_info(accounts_info_iter)?)?;
+
+        if !rent.is_exempt(deposit_account.lamports(), deposit_account.data_len()) {
+            return Err(LiquityError::NotRentExempt.into());
+        }
+
+        let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
+
+        if deposit.is_initialized {
+            let temp_account = next_account_info(accounts_info_iter)?;
+
+            deposit.token_amount = deposit.token_amount.add(amount);
+        } else {
+            deposit.is_initialized = true;
+            deposit.token_amount = amount;
+            // TODO remove test purposes
+            deposit.reward_token_amount = 111;
+            deposit.reward_governance_token_amount = 222;
+            deposit.reward_coin_amount = 333;
+            deposit.owner = *depositor.key;
+        }
+
+        Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
+
+        Ok(())
     }
 
     fn process_add_coin(
@@ -190,7 +304,6 @@ impl Processor {
         lamports: u64,
         program_id: &Pubkey,
     ) -> ProgramResult {
-        sol_log_64(borrow_amount, lamports, 0,0,0);
         if !helpers::check_min_collateral_include_gas_fee(borrow_amount, lamports) {
             return Err(LiquityError::InvalidCollateral.into());
         }

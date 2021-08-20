@@ -92,10 +92,40 @@ pub enum LiquityInstruction {
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Trove account
-    /// 1. `[writable]` The Temp Account to get lamports
+    /// 2. `[writable]` The Temp Account to get lamports
     AddCoin {
         amount: u64,
-    }
+    },
+
+    /// Add deposit
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Deposit account
+    /// 2. `[]` The rent sysvar
+    /// 3. `[writable]` The Temp Account to get token can be null if it's new deposit
+    AddDeposit {
+        amount: u64,
+    },
+
+    ///  Withdraw deposit
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Deposit account
+    WithdrawDeposit {
+        amount: u64
+    },
+
+    ///  Claim deposit reward
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Deposit account
+    ClaimDepositReward {}
 }
 
 
@@ -132,6 +162,21 @@ impl LiquityInstruction {
                 Self::AddCoin {
                     amount
                 }
+            },
+            6 => {
+                let (amount, _rest) = Self::unpack_u64(rest)?;
+                Self::AddDeposit {
+                    amount
+                }
+            },
+            7 => {
+                let (amount, _rest) = Self::unpack_u64(rest)?;
+                Self::WithdrawDeposit {
+                    amount
+                }
+            },
+            8 => {
+                Self::ClaimDepositReward {}
             }
             _ => return Err(InvalidInstruction.into()),
         })
