@@ -390,10 +390,6 @@ impl Processor {
 
         trove.lamports_amount = trove.lamports_amount.sub(amount);
 
-        if !helpers::check_min_collateral_include_gas_fee(trove.borrow_amount, trove.lamports_amount) {
-            return Err(LiquityError::InvalidCollateral.into());
-        }
-
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
         Ok(())
