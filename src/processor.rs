@@ -14,7 +14,7 @@ use spl_token::state::Account as TokenAccount;
 
 use crate::{error::LiquityError, helpers, instruction::LiquityInstruction, state::Escrow};
 use crate::state::{Trove};
-use std::ops::Sub;
+use std::ops::{Sub, Add};
 
 pub struct Processor;
 
@@ -47,7 +47,51 @@ impl Processor {
                 msg!("Instruction Withdraw Coin");
                 Self::process_withdraw_coin(accounts, amount, program_id)
             }
+            LiquityInstruction::AddCoin {amount} => {
+                msg!("Instruction Add Coin");
+                Self::process_add_coin(accounts, amount, program_id)
+            }
         }
+    }
+
+    fn process_add_coin(
+        accounts: &[AccountInfo],
+        amount: u64,
+        program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let borrower = next_account_info(accounts_info_iter)?;
+
+        if !borrower.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let trove_account = next_account_info(accounts_info_iter)?;
+
+        let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
+
+        if !trove.is_initialized() {
+            return Err(LiquityError::TroveIsNotInitialized.into());
+        }
+        if trove.is_liquidated {
+            return Err(LiquityError::TroveAlreadyLiquidated.into());
+        }
+        if *borrower.key != trove.owner {
+            return Err(LiquityError::OnlyForTroveOwner.into());
+        }
+
+        let temp_lamport_account = next_account_info(accounts_info_iter)?;
+
+        if temp_lamport_account.lamports() != amount {
+            return Err(LiquityError::ExpectedAmountMismatch.into());
+        }
+
+        trove.lamports_amount = trove.lamports_amount.add(amount);
+
+        Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
+
+        Ok(())
     }
 
     fn process_withdraw_coin(

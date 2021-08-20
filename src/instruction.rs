@@ -85,6 +85,17 @@ pub enum LiquityInstruction {
     WithdrawCoin {
         amount: u64,
     },
+
+    /// Add Coin
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    /// 1. `[writable]` The Temp Account to get lamports
+    AddCoin {
+        amount: u64,
+    }
 }
 
 
@@ -113,6 +124,12 @@ impl LiquityInstruction {
             3 => {
                 let (amount, _rest) = Self::unpack_u64(rest)?;
                 Self::WithdrawCoin {
+                    amount
+                }
+            },
+            4 => {
+                let (amount, _rest) = Self::unpack_u64(rest)?;
+                Self::AddCoin {
                     amount
                 }
             }
