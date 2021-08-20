@@ -387,9 +387,6 @@ impl Processor {
         if trove.is_liquidated {
             return Err(LiquityError::TroveAlreadyLiquidated.into());
         }
-        if *borrower.key != trove.owner {
-            return Err(LiquityError::OnlyForTroveOwner.into());
-        }
 
         trove.lamports_amount = trove.lamports_amount.sub(amount);
 
