@@ -12,6 +12,80 @@ fn slice_to_arr(chunk: &[u8]) -> &[u8; 32] {
     chunk.try_into().expect("slice with incorrect length")
 }
 
+pub struct Deposit {
+    pub is_initialized: bool,
+    pub token_amount: u64,
+    pub reward_token_amount: u64,
+    pub reward_governance_token_amount: u64,
+    pub reward_coin_amount: u64,
+    pub owner: Pubkey,
+}
+
+impl Sealed for Deposit {}
+
+impl IsInitialized for Deposit {
+    fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
+}
+
+impl Pack for Deposit {
+    const LEN: usize = 65;
+    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+        let src = array_ref![src, 0, Deposit::LEN];
+        let (
+            is_initialized,
+            token_amount,
+            reward_token_amount,
+            reward_governance_token_amount,
+            reward_coin_amount,
+            owner,
+        ) = array_refs![src, 1, 8, 8, 8, 8, 32];
+        let is_initialized = match is_initialized {
+            [0] => false,
+            [1] => true,
+            _ => return Err(ProgramError::InvalidAccountData),
+        };
+
+        Ok(Deposit {
+            is_initialized,
+            token_amount: u64::from_le_bytes(*token_amount),
+            reward_token_amount: u64::from_le_bytes(*reward_token_amount),
+            reward_governance_token_amount: u64::from_le_bytes(*reward_governance_token_amount),
+            reward_coin_amount: u64::from_le_bytes(*reward_coin_amount),
+            owner: Pubkey::new_from_array(*owner),
+        })
+    }
+
+    fn pack_into_slice(&self, dst: &mut [u8]) {
+        let dst = array_mut_ref![dst, 0, Deposit::LEN];
+        let (
+            is_initialized_dst,
+            token_amount_dst,
+            reward_token_amount_dst,
+            reward_governance_token_amount_dst,
+            reward_coin_amount_dst,
+            owner_dst,
+        ) = mut_array_refs![dst, 1, 8, 8, 8, 8, 32];
+
+        let Deposit {
+            is_initialized,
+            token_amount,
+            reward_token_amount,
+            reward_governance_token_amount,
+            reward_coin_amount,
+            owner,
+        } = self;
+
+        is_initialized_dst[0] = *is_initialized as u8;
+        *token_amount_dst = token_amount.to_le_bytes();
+        *reward_token_amount_dst = reward_token_amount.to_le_bytes();
+        *reward_governance_token_amount_dst = reward_governance_token_amount.to_le_bytes();
+        *reward_coin_amount_dst = reward_coin_amount.to_le_bytes();
+        owner_dst.copy_from_slice(owner.as_ref());
+    }
+}
+
 pub struct Trove {
     pub is_initialized: bool,
     pub is_liquidated: bool,
