@@ -50,6 +50,10 @@ impl Processor {
                 msg!("Instruction Add Coin");
                 Self::process_add_coin(accounts, amount, program_id)
             }
+            LiquityInstruction::RedeemCoin {amount} => {
+                msg!("Instruction Redeem Coin");
+                Self::process_redeem_coin(accounts, amount, program_id)
+            }
             LiquityInstruction::AddDeposit {amount} => {
                 msg!("Instruction Add Deposit");
                 Self::process_add_deposit(accounts, amount, program_id)
@@ -513,6 +517,37 @@ impl Processor {
                 token_program.clone(),
             ],
         )?;
+
+        Ok(())
+    }
+
+    fn process_redeem_coin(
+        accounts: &[AccountInfo],
+        amount: u64,
+        program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let borrower = next_account_info(accounts_info_iter)?;
+
+        if !borrower.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let trove_account = next_account_info(accounts_info_iter)?;
+
+        let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
+
+        if !trove.is_initialized() {
+            return Err(LiquityError::TroveIsNotInitialized.into());
+        }
+        if trove.is_liquidated {
+            return Err(LiquityError::TroveAlreadyLiquidated.into());
+        }
+
+        trove.lamports_amount = trove.lamports_amount.sub(amount);
+
+        Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
         Ok(())
     }
