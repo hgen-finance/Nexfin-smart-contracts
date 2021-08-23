@@ -53,9 +53,6 @@ pub enum LiquityInstruction {
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The account to store trove
     /// 2. `[]` The rent sysvar
-    /// 3. `[]` The token program
-    /// 3. `[]` The GENS token
-    /// 4. `[]` The account to get tokens
     Borrow {
         /// the amount the taker expects to be paid in the other token, as a u64 because that's the max possible supply of a token
         borrow_amount: u64,
@@ -69,6 +66,9 @@ pub enum LiquityInstruction {
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Trove account
+    /// 2. `[]` Token program
+    /// 3. `[]` User token acc
+    /// 4. `[]` Mint Token key
     CloseTrove {},
 
     /// Liquidate Trove
@@ -77,6 +77,7 @@ pub enum LiquityInstruction {
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Trove account
+    /// 2. `[writable]` The Trove owner
     LiquidateTrove {},
 
     /// Withdraw Coin
@@ -138,7 +139,17 @@ pub enum LiquityInstruction {
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Deposit account
-    ClaimDepositReward {}
+    ClaimDepositReward {},
+
+
+    /// Trove received
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    ReceiveTrove {},
 }
 
 
@@ -196,6 +207,9 @@ impl LiquityInstruction {
             },
             8 => {
                 Self::ClaimDepositReward {}
+            },
+            9 => {
+                Self::ReceiveTrove {}
             }
             _ => return Err(InvalidInstruction.into()),
         })

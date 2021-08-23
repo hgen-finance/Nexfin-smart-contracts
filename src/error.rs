@@ -35,6 +35,10 @@ pub enum LiquityError {
     #[error("Trove Is Not Initialized")]
     TroveIsNotInitialized,
 
+    /// Trove Is Not Received
+    #[error("Trove Is Not Received")]
+    TroveIsNotReceived,
+
     /// Only For Trove Owner
     #[error("Only For Trove Owner")]
     OnlyForTroveOwner,

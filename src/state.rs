@@ -141,8 +141,8 @@ impl Pack for Trove {
 
         Ok(Trove {
             is_initialized,
-            is_liquidated,
             is_received,
+            is_liquidated,
             borrow_amount: u64::from_le_bytes(*borrow_amount),
             lamports_amount: u64::from_le_bytes(*lamports_amount),
             team_fee: u64::from_le_bytes(*team_fee),
@@ -156,8 +156,8 @@ impl Pack for Trove {
         let dst = array_mut_ref![dst, 0, Trove::LEN];
         let (
             is_initialized_dst,
-            is_liquidated_dst,
             is_received_dst,
+            is_liquidated_dst,
             borrow_amount_dst,
             lamports_amount_dst,
             team_fee_dst,
@@ -168,8 +168,8 @@ impl Pack for Trove {
 
         let Trove {
             is_initialized,
-            is_liquidated,
             is_received,
+            is_liquidated,
             borrow_amount,
             lamports_amount,
             team_fee,
@@ -179,8 +179,8 @@ impl Pack for Trove {
         } = self;
 
         is_initialized_dst[0] = *is_initialized as u8;
-        is_liquidated_dst[0] = *is_liquidated as u8;
         is_received_dst[0] = *is_received as u8;
+        is_liquidated_dst[0] = *is_liquidated as u8;
         *borrow_amount_dst = borrow_amount.to_le_bytes();
         *lamports_amount_dst = lamports_amount.to_le_bytes();
         *team_fee_dst = team_fee.to_le_bytes();
