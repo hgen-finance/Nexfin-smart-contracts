@@ -188,31 +188,43 @@ impl Processor {
             return Err(LiquityError::NotRentExempt.into());
         }
 
+
         let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
 
         if deposit.is_initialized {
-            let temp_account = next_account_info(accounts_info_iter)?;
-
             deposit.token_amount = deposit.token_amount.add(amount);
         } else {
             deposit.is_initialized = true;
             deposit.token_amount = amount;
-            // TODO remove test purposes
             deposit.reward_token_amount = 0;
             deposit.reward_governance_token_amount = 0;
             deposit.reward_coin_amount = 0;
             deposit.owner = *depositor.key;
-
-            // msg!("Calling the token program to transfer token account ownership...");
-            // invoke(
-            //     &owner_change_ix,
-            //     &[
-            //         temp_token_account.clone(),
-            //         initializer.clone(),
-            //         token_program.clone(),
-            //     ],
-            // )?;
         }
+
+        let token_program = next_account_info(accounts_info_iter)?;
+        let temp_pda_token = next_account_info(accounts_info_iter)?;
+        let token = next_account_info(accounts_info_iter)?;
+
+        let transfer_to_initializer_ix = spl_token::instruction::burn(
+            token_program.key,
+            temp_pda_token.key,
+            token.key,
+            depositor.key,
+            &[&depositor.key],
+            amount * 1000000000,
+        )?;
+
+        msg!("Calling the token program to transfer tokens to the escrow's initializer...");
+        invoke(
+            &transfer_to_initializer_ix,
+            &[
+                token.clone(),
+                temp_pda_token.clone(),
+                depositor.clone(),
+                token_program.clone(),
+            ],
+        )?;
 
         Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
 
@@ -355,10 +367,9 @@ impl Processor {
         if trove.is_liquidated {
             return Err(LiquityError::TroveAlreadyLiquidated.into());
         }
+
         let token_program = next_account_info(accounts_info_iter)?;
-
         let temp_pda_token = next_account_info(accounts_info_iter)?;
-
         let token = next_account_info(accounts_info_iter)?;
 
         let transfer_to_initializer_ix = spl_token::instruction::burn(

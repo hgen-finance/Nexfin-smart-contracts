@@ -118,7 +118,9 @@ pub enum LiquityInstruction {
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Deposit account
     /// 2. `[]` The rent sysvar
-    /// 3. `[writable]` The Temp Account to get token can be null if it's new deposit
+    /// 3. `[]` Token program
+    /// 4. `[]` User token acc
+    /// 5. `[]` Mint Token key
     AddDeposit {
         amount: u64,
     },
