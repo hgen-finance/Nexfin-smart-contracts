@@ -88,9 +88,13 @@ impl Pack for Deposit {
 
 pub struct Trove {
     pub is_initialized: bool,
+    pub is_received: bool,
     pub is_liquidated: bool,
     pub borrow_amount: u64,
     pub lamports_amount: u64,
+    pub team_fee: u64,
+    pub depositor_fee: u64,
+    pub amount_to_close: u64,
     pub owner: Pubkey,
 }
 
@@ -103,16 +107,20 @@ impl IsInitialized for Trove {
 }
 
 impl Pack for Trove {
-    const LEN: usize = 50;
+    const LEN: usize = 75;
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
         let src = array_ref![src, 0, Trove::LEN];
         let (
             is_initialized,
+            is_received,
             is_liquidated,
             borrow_amount,
             lamports_amount,
+            team_fee,
+            depositor_fee,
+            amount_to_close,
             owner,
-        ) = array_refs![src, 1, 1, 8, 8, 32];
+        ) = array_refs![src, 1, 1, 1, 8, 8, 8, 8, 8, 32];
         let is_initialized = match is_initialized {
             [0] => false,
             [1] => true,
@@ -125,11 +133,21 @@ impl Pack for Trove {
             _ => return Err(ProgramError::InvalidAccountData),
         };
 
+        let is_received = match is_received {
+            [0] => false,
+            [1] => true,
+            _ => return Err(ProgramError::InvalidAccountData),
+        };
+
         Ok(Trove {
             is_initialized,
             is_liquidated,
+            is_received,
             borrow_amount: u64::from_le_bytes(*borrow_amount),
             lamports_amount: u64::from_le_bytes(*lamports_amount),
+            team_fee: u64::from_le_bytes(*team_fee),
+            depositor_fee: u64::from_le_bytes(*depositor_fee),
+            amount_to_close: u64::from_le_bytes(*amount_to_close),
             owner: Pubkey::new_from_array(*owner),
         })
     }
@@ -139,23 +157,35 @@ impl Pack for Trove {
         let (
             is_initialized_dst,
             is_liquidated_dst,
+            is_received_dst,
             borrow_amount_dst,
             lamports_amount_dst,
+            team_fee_dst,
+            depositor_fee_dst,
+            amount_to_close_dst,
             owner_dst,
-        ) = mut_array_refs![dst,  1, 1, 8, 8, 32];
+        ) = mut_array_refs![dst,  1, 1, 1, 8, 8, 8, 8, 8, 32];
 
         let Trove {
             is_initialized,
             is_liquidated,
+            is_received,
             borrow_amount,
             lamports_amount,
+            team_fee,
+            depositor_fee,
+            amount_to_close,
             owner,
         } = self;
 
         is_initialized_dst[0] = *is_initialized as u8;
         is_liquidated_dst[0] = *is_liquidated as u8;
+        is_received_dst[0] = *is_received as u8;
         *borrow_amount_dst = borrow_amount.to_le_bytes();
         *lamports_amount_dst = lamports_amount.to_le_bytes();
+        *team_fee_dst = team_fee.to_le_bytes();
+        *depositor_fee_dst = depositor_fee.to_le_bytes();
+        *amount_to_close_dst = amount_to_close.to_le_bytes();
         owner_dst.copy_from_slice(owner.as_ref());
     }
 }

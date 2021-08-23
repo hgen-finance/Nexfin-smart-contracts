@@ -11,9 +11,11 @@ use solana_program::{
 use solana_program::system_instruction::create_account;
 use spl_token::state::Account as TokenAccount;
 
-use crate::{error::LiquityError, helpers, instruction::LiquityInstruction, state::Escrow};
+use crate::{error::LiquityError, helpers, instruction::LiquityInstruction, state::Escrow, AUTHORITY_MINT};
 use crate::state::{Trove, Deposit};
 use std::ops::{Sub, Add};
+use crate::helpers::{get_trove_sent_amount, sent_trove_fee_to_depositors, get_depositors_fee, get_team_fee, get_trove_debt_amount};
+use solana_program::log::sol_log_64;
 
 pub struct Processor;
 
@@ -295,9 +297,15 @@ impl Processor {
             return Err(LiquityError::TroveAlreadyLiquidated.into());
         }
 
-        trove.is_liquidated = true;
+        msg!("Send back the lamports!");
+        sol_log_64(trove_account.lamports(), borrower.lamports(),0,0,0);
+        **borrower.lamports.borrow_mut() = borrower.lamports()
+            .checked_add(trove_account.lamports())
+            .ok_or(LiquityError::AmountOverflow)?;
+        sol_log_64(trove_account.lamports(), borrower.lamports(),0,0,0);
 
-        Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
+        **trove_account.lamports.borrow_mut() = 0;
+        *trove_account.data.borrow_mut() = &mut [];
 
         Ok(())
     }
@@ -308,11 +316,12 @@ impl Processor {
         lamports: u64,
         program_id: &Pubkey,
     ) -> ProgramResult {
+        // check collateral
         if !helpers::check_min_collateral_include_gas_fee(borrow_amount, lamports) {
             return Err(LiquityError::InvalidCollateral.into());
         }
 
-
+        // Check accounts
         let accounts_info_iter = &mut accounts.iter();
         let borrower = next_account_info(accounts_info_iter)?;
 
@@ -328,6 +337,7 @@ impl Processor {
             return Err(LiquityError::NotRentExempt.into());
         }
 
+        // Create Trove
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
@@ -335,8 +345,12 @@ impl Processor {
 
         trove.is_initialized = true;
         trove.is_liquidated = false;
+        trove.is_received = false;
         trove.borrow_amount = borrow_amount;
         trove.lamports_amount = lamports;
+        trove.depositor_fee = get_depositors_fee(borrow_amount);
+        trove.team_fee = get_team_fee(borrow_amount);
+        trove.amount_to_close = get_trove_debt_amount(borrow_amount);
         trove.owner = *borrower.key;
 
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
@@ -477,6 +491,7 @@ impl Processor {
         if *token_to_receive_account.owner != spl_token::id() {
             return Err(ProgramError::IncorrectProgramId);
         }
+
         let escrow_account = next_account_info(account_info_iter)?;
         let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
 
