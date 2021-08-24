@@ -5,6 +5,3 @@ pub mod processor;
 pub mod state;
 pub mod params;
 pub mod helpers;
-
-
-const AUTHORITY_MINT: &[u8] = b"mint";

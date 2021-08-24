@@ -1,13 +1,13 @@
 use crate::{params::MIN_COLLATERAL, params::GAS_FEE};
 use solana_program::native_token::lamports_to_sol;
 use std::ops::Mul;
-use crate::params::{TOTAL_FEE, DEPOSIT_FEE, TEAM_FEE};
+use crate::params::{DEPOSIT_FEE, TEAM_FEE};
 
 pub fn check_min_collateral_include_gas_fee(
     amount: u64,
     lamports: u64
 ) -> bool {
-    lamports_to_sol(lamports - GAS_FEE) / lamports_to_sol(amount) as f64 >= MIN_COLLATERAL
+    get_lamport_price(lamports - GAS_FEE) / amount as f64 >= MIN_COLLATERAL
 }
 
 pub fn get_trove_sent_amount(
@@ -32,20 +32,6 @@ pub fn get_team_fee(
     amount: u64
 ) -> u64 {
     get_trove_debt_amount(amount) * (TEAM_FEE) / 100
-}
-
-pub fn sent_trove_fee_to_depositors(
-    amount: u64
-) -> bool {
-    // TODO make sent to depositors
-    true
-}
-
-pub fn sent_trove_fee_to_team(
-    amount: u64
-) -> bool {
-    // TODO make sent to team
-    true
 }
 
 fn get_lamport_price(lamports: u64) -> f64 {

@@ -4,13 +4,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
-use std::io::Read;
 use std::convert::TryInto;
-use solana_program::log::sol_log_compute_units;
-
-fn slice_to_arr(chunk: &[u8]) -> &[u8; 32] {
-    chunk.try_into().expect("slice with incorrect length")
-}
 
 pub struct Deposit {
     pub is_initialized: bool,

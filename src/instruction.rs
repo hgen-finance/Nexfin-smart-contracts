@@ -1,12 +1,11 @@
 use std::convert::TryInto;
-use solana_program::program_error::ProgramError;
 
 use crate::error::LiquityError::InvalidInstruction;
 use solana_program::{
     msg,
-    pubkey::{PUBKEY_BYTES, Pubkey}
 };
 use crate::error::LiquityError;
+use solana_program::program_error::ProgramError;
 
 pub enum LiquityInstruction {
 
@@ -149,9 +148,23 @@ pub enum LiquityInstruction {
     ///
     /// Accounts expected:
     ///
-    /// 0. `[signer]` The account of the person taking the trade
+    /// 0. `[signer]` Sys acc
     /// 1. `[writable]` The Trove account
     ReceiveTrove {},
+
+
+    /// Set Deposit reward
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` Sys acc
+    /// 1. `[writable]` The Deposit account
+    AddDepositReward {
+        coin: u64,
+        governance: u64,
+        token: u64
+    },
 }
 
 
@@ -162,7 +175,6 @@ impl LiquityInstruction {
         let (tag, rest) = input.split_first().ok_or(InvalidInstruction)?;
 
         Ok(match tag {
-            /// TODO params
             0 => {
                 let (borrow_amount, rest) = Self::unpack_u64(rest)?;
                 let (lamports, _rest) = Self::unpack_u64(rest)?;
@@ -212,6 +224,17 @@ impl LiquityInstruction {
             },
             9 => {
                 Self::ReceiveTrove {}
+            },
+            10 => {
+                let (coin, _rest) = Self::unpack_u64(rest)?;
+                let (governance, _rest) = Self::unpack_u64(rest)?;
+                let (token, _rest) = Self::unpack_u64(rest)?;
+
+                Self::AddDepositReward {
+                    coin,
+                    governance,
+                    token
+                }
             }
             _ => return Err(InvalidInstruction.into()),
         })
@@ -229,43 +252,5 @@ impl LiquityInstruction {
             .map(u64::from_le_bytes)
             .ok_or(LiquityError::InstructionUnpackError)?;
         Ok((value, rest))
-    }
-
-    fn unpack_u8(input: &[u8]) -> Result<(u8, &[u8]), ProgramError> {
-        if input.is_empty() {
-            msg!("u8 cannot be unpacked");
-            return Err(LiquityError::InstructionUnpackError.into());
-        }
-        let (bytes, rest) = input.split_at(1);
-        let value = bytes
-            .get(..1)
-            .and_then(|slice| slice.try_into().ok())
-            .map(u8::from_le_bytes)
-            .ok_or(LiquityError::InstructionUnpackError)?;
-        Ok((value, rest))
-    }
-
-    fn unpack_bytes32(input: &[u8]) -> Result<(&[u8; 32], &[u8]), ProgramError> {
-        if input.len() < 32 {
-            msg!("32 bytes cannot be unpacked");
-            return Err(LiquityError::InstructionUnpackError.into());
-        }
-        let (bytes, rest) = input.split_at(32);
-        Ok((
-            bytes
-                .try_into()
-                .map_err(|_| LiquityError::InstructionUnpackError)?,
-            rest,
-        ))
-    }
-
-    fn unpack_pubkey(input: &[u8]) -> Result<(Pubkey, &[u8]), ProgramError> {
-        if input.len() < PUBKEY_BYTES {
-            msg!("Pubkey cannot be unpacked");
-            return Err(LiquityError::InstructionUnpackError.into());
-        }
-        let (key, rest) = input.split_at(PUBKEY_BYTES);
-        let pk = Pubkey::new(key);
-        Ok((pk, rest))
     }
 }
