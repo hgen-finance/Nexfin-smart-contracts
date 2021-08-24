@@ -21,14 +21,6 @@ impl Processor {
         let instruction = LiquityInstruction::unpack(instruction_data)?;
 
         match instruction {
-            LiquityInstruction::InitEscrow { amount: _ } => {
-                msg!("Instruction: InitEscrow");
-                Self::fallback()
-            }
-            LiquityInstruction::Exchange { amount: _ } => {
-                msg!("Instruction Exchange");
-                Self::fallback()
-            }
             LiquityInstruction::Borrow { borrow_amount, lamports } => {
                 msg!("Instruction Borrow");
                 Self::process_borrow(accounts, borrow_amount, lamports, program_id)
@@ -225,6 +217,7 @@ impl Processor {
 
         let token_program = next_account_info(accounts_info_iter)?;
         let temp_pda_token = next_account_info(accounts_info_iter)?;
+        let temp_governance_token = next_account_info(accounts_info_iter)?;
         let token = next_account_info(accounts_info_iter)?;
 
         if deposit.is_initialized {
@@ -236,6 +229,7 @@ impl Processor {
             deposit.reward_governance_token_amount = 0;
             deposit.reward_coin_amount = 0;
             deposit.bank = *temp_pda_token.key;
+            deposit.governance_bank = *temp_governance_token.key;
             deposit.owner = *depositor.key;
         }
 
@@ -513,10 +507,6 @@ impl Processor {
 
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
-        Ok(())
-    }
-
-    fn fallback() -> ProgramResult {
         Ok(())
     }
 }

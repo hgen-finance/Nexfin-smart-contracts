@@ -13,6 +13,7 @@ pub struct Deposit {
     pub reward_governance_token_amount: u64,
     pub reward_coin_amount: u64,
     pub bank: Pubkey,
+    pub governance_bank: Pubkey,
     pub owner: Pubkey,
 }
 
@@ -25,7 +26,7 @@ impl IsInitialized for Deposit {
 }
 
 impl Pack for Deposit {
-    const LEN: usize = 97;
+    const LEN: usize = 129;
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
         let src = array_ref![src, 0, Deposit::LEN];
         let (
@@ -35,8 +36,9 @@ impl Pack for Deposit {
             reward_governance_token_amount,
             reward_coin_amount,
             bank,
+            governance_bank,
             owner,
-        ) = array_refs![src, 1, 8, 8, 8, 8, 32, 32];
+        ) = array_refs![src, 1, 8, 8, 8, 8, 32, 32, 32];
         let is_initialized = match is_initialized {
             [0] => false,
             [1] => true,
@@ -50,6 +52,7 @@ impl Pack for Deposit {
             reward_governance_token_amount: u64::from_le_bytes(*reward_governance_token_amount),
             reward_coin_amount: u64::from_le_bytes(*reward_coin_amount),
             bank: Pubkey::new_from_array(*bank),
+            governance_bank: Pubkey::new_from_array(*governance_bank),
             owner: Pubkey::new_from_array(*owner),
         })
     }
@@ -63,8 +66,9 @@ impl Pack for Deposit {
             reward_governance_token_amount_dst,
             reward_coin_amount_dst,
             bank_dst,
+            governance_bank_dst,
             owner_dst,
-        ) = mut_array_refs![dst, 1, 8, 8, 8, 8, 32, 32];
+        ) = mut_array_refs![dst, 1, 8, 8, 8, 8, 32, 32, 32];
 
         let Deposit {
             is_initialized,
@@ -73,6 +77,7 @@ impl Pack for Deposit {
             reward_governance_token_amount,
             reward_coin_amount,
             bank,
+            governance_bank,
             owner,
         } = self;
 
@@ -83,6 +88,7 @@ impl Pack for Deposit {
         *reward_coin_amount_dst = reward_coin_amount.to_le_bytes();
         owner_dst.copy_from_slice(owner.as_ref());
         bank_dst.copy_from_slice(bank.as_ref());
+        governance_bank_dst.copy_from_slice(governance_bank.as_ref());
     }
 }
 
