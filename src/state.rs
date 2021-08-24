@@ -18,6 +18,7 @@ pub struct Deposit {
     pub reward_token_amount: u64,
     pub reward_governance_token_amount: u64,
     pub reward_coin_amount: u64,
+    pub bank: Pubkey,
     pub owner: Pubkey,
 }
 
@@ -30,7 +31,7 @@ impl IsInitialized for Deposit {
 }
 
 impl Pack for Deposit {
-    const LEN: usize = 65;
+    const LEN: usize = 97;
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
         let src = array_ref![src, 0, Deposit::LEN];
         let (
@@ -39,8 +40,9 @@ impl Pack for Deposit {
             reward_token_amount,
             reward_governance_token_amount,
             reward_coin_amount,
+            bank,
             owner,
-        ) = array_refs![src, 1, 8, 8, 8, 8, 32];
+        ) = array_refs![src, 1, 8, 8, 8, 8, 32, 32];
         let is_initialized = match is_initialized {
             [0] => false,
             [1] => true,
@@ -53,6 +55,7 @@ impl Pack for Deposit {
             reward_token_amount: u64::from_le_bytes(*reward_token_amount),
             reward_governance_token_amount: u64::from_le_bytes(*reward_governance_token_amount),
             reward_coin_amount: u64::from_le_bytes(*reward_coin_amount),
+            bank: Pubkey::new_from_array(*bank),
             owner: Pubkey::new_from_array(*owner),
         })
     }
@@ -65,8 +68,9 @@ impl Pack for Deposit {
             reward_token_amount_dst,
             reward_governance_token_amount_dst,
             reward_coin_amount_dst,
+            bank_dst,
             owner_dst,
-        ) = mut_array_refs![dst, 1, 8, 8, 8, 8, 32];
+        ) = mut_array_refs![dst, 1, 8, 8, 8, 8, 32, 32];
 
         let Deposit {
             is_initialized,
@@ -74,6 +78,7 @@ impl Pack for Deposit {
             reward_token_amount,
             reward_governance_token_amount,
             reward_coin_amount,
+            bank,
             owner,
         } = self;
 
@@ -83,6 +88,7 @@ impl Pack for Deposit {
         *reward_governance_token_amount_dst = reward_governance_token_amount.to_le_bytes();
         *reward_coin_amount_dst = reward_coin_amount.to_le_bytes();
         owner_dst.copy_from_slice(owner.as_ref());
+        bank_dst.copy_from_slice(bank.as_ref());
     }
 }
 

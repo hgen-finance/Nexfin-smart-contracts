@@ -142,19 +142,20 @@ impl Processor {
     ) -> ProgramResult
     {
         let accounts_info_iter = &mut accounts.iter();
-        let depositor = next_account_info(accounts_info_iter)?;
 
-        if !depositor.is_signer {
+        let sys_acc = next_account_info(accounts_info_iter)?;
+
+        if !sys_acc.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        if *sys_acc.key != SYSTEM_ACCOUNT_ADDRESS {
             return Err(ProgramError::MissingRequiredSignature);
         }
 
         let deposit_account = next_account_info(accounts_info_iter)?;
 
         let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
-
-        if deposit.owner != *depositor.key {
-            return Err(LiquityError::OnlyForDepositOwner.into());
-        }
 
         if amount > deposit.token_amount {
             return Err(LiquityError::InsufficientLiquidity.into());
@@ -188,8 +189,11 @@ impl Processor {
             return Err(LiquityError::NotRentExempt.into());
         }
 
-
         let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
+
+        let token_program = next_account_info(accounts_info_iter)?;
+        let temp_pda_token = next_account_info(accounts_info_iter)?;
+        let token = next_account_info(accounts_info_iter)?;
 
         if deposit.is_initialized {
             deposit.token_amount = deposit.token_amount.add(amount);
@@ -199,12 +203,9 @@ impl Processor {
             deposit.reward_token_amount = 0;
             deposit.reward_governance_token_amount = 0;
             deposit.reward_coin_amount = 0;
+            deposit.bank = *temp_pda_token.key;
             deposit.owner = *depositor.key;
         }
-
-        let token_program = next_account_info(accounts_info_iter)?;
-        let temp_pda_token = next_account_info(accounts_info_iter)?;
-        let token = next_account_info(accounts_info_iter)?;
 
         let transfer_to_initializer_ix = spl_token::instruction::burn(
             token_program.key,
