@@ -165,6 +165,7 @@ impl Processor {
         _program_id: &Pubkey,
     ) -> ProgramResult
     {
+        msg!("Trying to withraw the gens from the pool");
         let accounts_info_iter = &mut accounts.iter();
 
         let sys_acc = next_account_info(accounts_info_iter)?;
@@ -399,13 +400,19 @@ impl Processor {
         let temp_pda_token = next_account_info(accounts_info_iter)?;
         let token = next_account_info(accounts_info_iter)?;
 
+        msg!("the borrow key is {}", borrower.key);
+        msg!("the token key is {}", token.key);
+        msg!("the token temp key is {}", temp_pda_token.key);
+        msg!("the token program key is {}", token_program.key);
+        msg!("the amount to be closed is  {}", trove.amount_to_close);
+        
         let transfer_to_initializer_ix = spl_token::instruction::burn(
             token_program.key,
-            temp_pda_token.key,
-            token.key,
-            borrower.key,
-            &[&borrower.key],
-            trove.amount_to_close * 1000000000,
+            temp_pda_token.key, // token account key
+            token.key, // token mint address key
+            borrower.key, // authority key
+            &[&borrower.key], // signer pub key
+            trove.amount_to_close * 10000000, // amount to close, lower the value to just 100 later
         )?;
 
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
@@ -473,7 +480,6 @@ impl Processor {
         trove.team_fee = get_team_fee(borrow_amount);
         trove.amount_to_close = get_trove_debt_amount(borrow_amount);
         trove.owner = *borrower.key;
-
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
         Ok(())
