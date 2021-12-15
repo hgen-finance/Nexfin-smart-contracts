@@ -25,6 +25,10 @@ impl Processor {
                 msg!("Instruction Borrow");
                 Self::process_borrow(accounts, borrow_amount, lamports, program_id)
             }
+            LiquityInstruction::UpdateTrove{amount} => {
+                msg!("Instruction Update Trove");
+                Self::process_update_trove(accounts, amount, program_id)
+            }
             LiquityInstruction::CloseTrove {} => {
                 msg!("Instruction Close Trove");
                 Self::process_close_trove(accounts, program_id)
@@ -168,15 +172,23 @@ impl Processor {
         msg!("Trying to withraw the gens from the pool");
         let accounts_info_iter = &mut accounts.iter();
 
-        let sys_acc = next_account_info(accounts_info_iter)?;
+        let depositor = next_account_info(accounts_info_iter)?;
 
-        if !sys_acc.is_signer {
+        if !depositor.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
 
-        if *sys_acc.key != SYSTEM_ACCOUNT_ADDRESS {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        //TODO set this up for later
+        //let sys_acc = next_account_info(accounts_info_iter)?;
+
+        
+        // if !sys_acc.is_signer {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
+
+        // if *sys_acc.key != SYSTEM_ACCOUNT_ADDRESS {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
         let deposit_account = next_account_info(accounts_info_iter)?;
 
@@ -187,6 +199,7 @@ impl Processor {
         }
 
         deposit.token_amount = deposit.token_amount.sub(amount);
+        msg!("the new deposit token amount is {}", deposit.token_amount);
 
         Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
 
@@ -220,7 +233,7 @@ impl Processor {
         let temp_pda_token = next_account_info(accounts_info_iter)?;
         let temp_governance_token = next_account_info(accounts_info_iter)?;
         let token = next_account_info(accounts_info_iter)?;
-
+        
         if deposit.is_initialized {
             deposit.token_amount = deposit.token_amount.add(amount);
         } else {
@@ -377,6 +390,80 @@ impl Processor {
         Ok(())
     }
 
+
+    //withdraw amount from the trove
+    fn process_update_trove(
+        accounts: &[AccountInfo],
+        amount: u64,
+        _program_id: &Pubkey
+    ) -> ProgramResult 
+    {
+        let accounts_info_iter = &mut accounts.iter();
+        let borrower = next_account_info(accounts_info_iter)?;
+
+        if !borrower.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let trove_account = next_account_info(accounts_info_iter)?;
+
+        // make the trove mutable to update the trove amount
+        let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
+        if trove.is_liquidated {
+            return Err(LiquityError::TroveAlreadyLiquidated.into());
+        }
+
+        let token_program = next_account_info(accounts_info_iter)?;
+        let temp_pda_token = next_account_info(accounts_info_iter)?;
+        let token = next_account_info(accounts_info_iter)?;
+
+
+        
+        let transfer_to_initializer_ix = spl_token::instruction::burn(
+            token_program.key,
+            temp_pda_token.key, // token account key
+            token.key, // token mint address key
+            borrower.key, // authority key
+            &[&borrower.key], // signer pub key
+            amount * 1000000000
+        )?;
+        
+        // update the amount to close price
+        trove.amount_to_close = (trove.amount_to_close).sub(amount);
+
+        msg!("the amount is {}", amount);
+        msg!("amount to close is {}", trove.amount_to_close);
+
+        msg!("Calling the token program to transfer tokens to the escrow's initializer...");
+        invoke(
+            &transfer_to_initializer_ix,
+            &[
+                token.clone(),
+                temp_pda_token.clone(),
+                borrower.clone(),
+                token_program.clone(),
+            ],
+        )?;
+
+        // check if the trove accout amount is paid in full to send back back the deposited sol
+        if trove.amount_to_close == amount{
+            msg!("Send back the lamports!");
+            **borrower.lamports.borrow_mut() = borrower.lamports()
+                .checked_add(trove_account.lamports())
+                .ok_or(LiquityError::AmountOverflow)?;
+
+            **trove_account.lamports.borrow_mut() = 0;
+
+            
+             *trove_account.data.borrow_mut() = &mut [];
+        }
+        
+        // pack the updated trove account data
+        Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
+
+        Ok(())
+    }
+
     fn process_close_trove(
         accounts: &[AccountInfo],
         _program_id: &Pubkey,
@@ -391,6 +478,7 @@ impl Processor {
 
         let trove_account = next_account_info(accounts_info_iter)?;
 
+        // make the trove mutable to update the trove amount
         let trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_liquidated {
             return Err(LiquityError::TroveAlreadyLiquidated.into());
@@ -405,6 +493,7 @@ impl Processor {
         msg!("the token temp key is {}", temp_pda_token.key);
         msg!("the token program key is {}", token_program.key);
         msg!("the amount to be closed is  {}", trove.amount_to_close);
+
         
         let transfer_to_initializer_ix = spl_token::instruction::burn(
             token_program.key,
@@ -412,8 +501,10 @@ impl Processor {
             token.key, // token mint address key
             borrower.key, // authority key
             &[&borrower.key], // signer pub key
-            trove.amount_to_close * 10000000, // amount to close, lower the value to just 100 later
+            trove.amount_to_close * 1000000000
         )?;
+
+        msg!("amount to close is {}", trove.amount_to_close);
 
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
         invoke(
@@ -426,13 +517,16 @@ impl Processor {
             ],
         )?;
 
-        msg!("Send back the lamports!");
-        **borrower.lamports.borrow_mut() = borrower.lamports()
-            .checked_add(trove_account.lamports())
-            .ok_or(LiquityError::AmountOverflow)?;
+            msg!("Send back the lamports!");
+            **borrower.lamports.borrow_mut() = borrower.lamports()
+                .checked_add(trove_account.lamports())
+                .ok_or(LiquityError::AmountOverflow)?;
 
-        **trove_account.lamports.borrow_mut() = 0;
-        *trove_account.data.borrow_mut() = &mut [];
+            **trove_account.lamports.borrow_mut() = 0;
+
+            
+             *trove_account.data.borrow_mut() = &mut [];
+    
 
         Ok(())
     }
@@ -480,6 +574,9 @@ impl Processor {
         trove.team_fee = get_team_fee(borrow_amount);
         trove.amount_to_close = get_trove_debt_amount(borrow_amount);
         trove.owner = *borrower.key;
+
+        msg!("trove owner is {}", trove.owner);
+        msg!("the borrow amount is {}", trove.borrow_amount);
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
         Ok(())

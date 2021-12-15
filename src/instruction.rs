@@ -131,6 +131,20 @@ pub enum LiquityInstruction {
         governance: u64,
         token: u64
     },
+
+    /// Update Trove
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    /// 2. `[]` Token program
+    /// 3. `[]` User token acc
+    /// 4. `[]` Mint Token key
+    UpdateTrove {
+        amount: u64,
+    },
 }
 
 
@@ -200,6 +214,12 @@ impl LiquityInstruction {
                     coin,
                     governance,
                     token
+                }
+            },
+            11 => {
+                let (amount, _rest) = Self::unpack_u64(rest)?;
+                Self::UpdateTrove {
+                    amount
                 }
             }
             _ => return Err(InvalidInstruction.into()),
