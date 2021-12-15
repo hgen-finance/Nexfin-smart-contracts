@@ -27,13 +27,13 @@ pub fn get_trove_debt_amount(
 pub fn get_depositors_fee(
     amount: u64
 ) -> u64 {
-    get_trove_debt_amount(amount) * (DEPOSIT_FEE) / 100
+    get_trove_debt_amount(amount) * (DEPOSIT_FEE) / 1000
 }
 
 pub fn get_team_fee(
     amount: u64
 ) -> u64 {
-    get_trove_debt_amount(amount) * (TEAM_FEE) / 100
+    get_trove_debt_amount(amount) * (TEAM_FEE) / 1000
 }
 
 fn get_lamport_price(lamports: u64) -> f64 {
