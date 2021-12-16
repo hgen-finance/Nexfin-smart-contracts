@@ -428,6 +428,9 @@ impl Processor {
             amount * 1000000000
         )?;
         
+
+        
+
         // update the amount to close price
         trove.amount_to_close = (trove.amount_to_close).sub(amount);
 
@@ -446,17 +449,17 @@ impl Processor {
         )?;
 
         // check if the trove accout amount is paid in full to send back back the deposited sol
-        if trove.amount_to_close == amount{
-            msg!("Send back the lamports!");
-            **borrower.lamports.borrow_mut() = borrower.lamports()
-                .checked_add(trove_account.lamports())
-                .ok_or(LiquityError::AmountOverflow)?;
+        // if trove.amount_to_close == amount{
+        //     msg!("Send back the lamports!");
+        //     **borrower.lamports.borrow_mut() = borrower.lamports()
+        //         .checked_add(trove_account.lamports())
+        //         .ok_or(LiquityError::AmountOverflow)?;
 
-            **trove_account.lamports.borrow_mut() = 0;
+        //     **trove_account.lamports.borrow_mut() = 0;
 
             
-             *trove_account.data.borrow_mut() = &mut [];
-        }
+        //      *trove_account.data.borrow_mut() = &mut [];
+        // }
         
         // pack the updated trove account data
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
