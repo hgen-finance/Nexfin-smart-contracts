@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
-
+use std::mem::size_of;
 pub mod error;
 pub mod helpers;
 pub mod params;
 pub mod state;
 
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
+use anchor_lang::solana_program::system_program;
 
 use crate::error::LiquityError;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Transfer};
@@ -81,7 +82,7 @@ pub struct Borrow<'info> {
     #[account(signer, mut)]
     pub authority: AccountInfo<'info>,
 
-    #[account(mut)]
+    #[account(zero)]
     pub trove: ProgramAccount<'info, state::Trove>,
 
     pub rent: Sysvar<'info, Rent>,
