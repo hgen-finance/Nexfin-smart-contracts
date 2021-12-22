@@ -4,4 +4,4 @@
 .idea
 test-ledger
 node_modules/*
-.gitignore
+.DS_Stores
