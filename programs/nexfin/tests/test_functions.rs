@@ -5,39 +5,22 @@ use anchor_lang::solana_program::{instruction::Instruction, pubkey::Pubkey, sysv
 use anchor_lang::AccountDeserialize;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use helper::process_and_assert_ok;
-use solana_program_test::{processor, tokio, BanksClient, ProgramTest};
+use solana_program_test::{processor, tokio, ProgramTest};
 use solana_sdk::signature::{Keypair, Signer};
-use solana_sdk::{system_instruction, system_program};
-use std::mem::size_of;
-use std::str::FromStr;
+use solana_sdk::system_instruction;
 
 use nexfin_program::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 use nexfin_program::state::Trove;
 
 #[tokio::test]
 async fn test_trove_borrow() {
-    let program_id = Pubkey::from_str("g6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS").unwrap();
-    let program_test = ProgramTest::new(
-        "nexfin_program",
-        program_id,
-        processor!(nexfin_program::entry),
-    );
+    let init = helper::setup().await;
 
-    let (mut banks_client, payer, _) = program_test.start().await;
-
-    let authority = Keypair::new();
-    let trove = Keypair::new();
-
-    let rent = banks_client.get_rent().await.unwrap();
-    let space = size_of::<Trove>() as u64 + 8;
-    let create_ix = system_instruction::create_account(
-        &payer.pubkey(),
-        &trove.pubkey(),
-        rent.minimum_balance(space as usize),
-        space,
-        &program_id,
-    );
-    process_and_assert_ok(&[create_ix], &payer, &[&payer, &trove], &mut banks_client).await;
+    let program_id = init.program_id;
+    let authority = init.authority();
+    let trove = init.trove();
+    let payer = init.payer();
+    let mut banks_client = init.banks_client;
 
     let borrow_amount = 100;
     let lamports = 100;

@@ -7,14 +7,13 @@ pub mod state;
 
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 use crate::params::SYSTEM_ACCOUNT_ADDRESS;
-use anchor_lang::solana_program::system_program;
 use std::ops::{Add, Sub};
 
 use crate::error::LiquityError;
-use anchor_spl::token::{self, Burn, Mint, MintTo, TokenAccount, Transfer};
+use anchor_spl::token::{self, Burn, Mint, TokenAccount};
 use std::convert::TryInto;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 
 #[program]
 pub mod nexfin {
