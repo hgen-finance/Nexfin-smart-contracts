@@ -4,13 +4,14 @@ pub mod error;
 pub mod helpers;
 pub mod params;
 pub mod state;
-
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 use anchor_lang::solana_program::system_program;
+use std::ops::{Add, Sub};
 
 use crate::error::LiquityError;
 use anchor_spl::token::{self, Burn, Mint, MintTo, TokenAccount, Transfer};
 use std::convert::TryInto;
+
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
@@ -44,35 +45,27 @@ pub mod nexfin {
     }
 
     pub fn update_trove(ctx: Context<UpdateTrove>, amount: u64) -> ProgramResult {
-        let ref mut token_program = ctx.accounts.token_program;
+        let ref borrower = ctx.accounts.authority;
         let ref mut temp_pda_token = ctx.accounts.user_token;
         let ref mut mint_token = ctx.accounts.token_mint;
 
-        // let transfer_to_initializer_ix = spl_token::instruction::burn(
-        //     token_program.key,
-        //     temp_pda_token.key, // token account key
-        //     token.key,          // token mint address key
-        //     borrower.key,       // authority key
-        //     &[&borrower.key],   // signer pub key
-        //     amount * 1000000000,
-        // )?;
+        let ref mut trove = ctx.accounts.trove;
+        // update the amount to close price
+        trove.amount_to_close = (trove.amount_to_close).sub(amount);
 
-        // // update the amount to close price
-        // trove.amount_to_close = (trove.amount_to_close).sub(amount);
+        msg!("the amount is {}", amount);
+        msg!("amount to close is {}", trove.amount_to_close);
+        msg!("Calling the token program to transfer tokens to the escrow's initializer...");
 
-        // msg!("the amount is {}", amount);
-        // msg!("amount to close is {}", trove.amount_to_close);
-
-        // msg!("Calling the token program to transfer tokens to the escrow's initializer...");
-        // invoke(
-        //     &transfer_to_initializer_ix,
-        //     &[
-        //         token.clone(),
-        //         temp_pda_token.clone(),
-        //         borrower.clone(),
-        //         token_program.clone(),
-        //     ],
-        // )?;
+        let burn_ctx = CpiContext::new(
+            ctx.accounts.token_program.clone(),
+            Burn {
+                authority: borrower.to_account_info(),
+                mint: mint_token.to_account_info(),
+                to: temp_pda_token.to_account_info(),
+            },
+        );
+        token::burn(burn_ctx, amount * 1000000000)?;
 
         Ok(())
     }
