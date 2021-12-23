@@ -10,6 +10,7 @@ use crate::params::SYSTEM_ACCOUNT_ADDRESS;
 use std::ops::{Add, Sub};
 
 use crate::error::LiquityError;
+use anchor_lang::AccountsClose;
 use anchor_spl::token::{self, Burn, Mint, TokenAccount};
 use std::convert::TryInto;
 
@@ -56,6 +57,7 @@ pub mod nexfin {
         let ref mut mint_token = ctx.accounts.token_mint;
 
         let amount_to_burn = trove.amount_to_close * 1_000_000_000;
+
         msg!("the borrow key is {}", borrower.key);
         msg!("the token key is {}", mint_token.key());
         msg!("the token temp key is {}", user_token.key());
@@ -73,17 +75,6 @@ pub mod nexfin {
 
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
         token::burn(burn_ctx, amount_to_burn)?;
-
-        msg!("Send back the lamports!");
-        let trove_account = ctx.accounts.trove.to_account_info();
-        **borrower.lamports.borrow_mut() = borrower
-            .lamports()
-            .checked_add(trove_account.lamports())
-            .ok_or(LiquityError::AmountOverflow)?;
-
-        **trove_account.lamports.borrow_mut() = 0;
-
-        *trove_account.data.borrow_mut() = &mut [];
 
         Ok(())
     }
@@ -105,16 +96,6 @@ pub mod nexfin {
             return Err(LiquityError::TroveIsNotReceived.into());
         }
 
-        msg!("Send lamports to the sys acc");
-
-        let trove_account = ctx.accounts.trove.to_account_info();
-        **sys_account.lamports.borrow_mut() = sys_account
-            .lamports()
-            .checked_add(trove_account.lamports())
-            .ok_or(LiquityError::AmountOverflow)?;
-
-        **trove_account.lamports.borrow_mut() = 0;
-        *trove_account.data.borrow_mut() = &mut [];
         Ok(())
     }
 
@@ -432,7 +413,7 @@ pub struct CloseTrove<'info> {
     #[account(signer, mut)]
     pub authority: AccountInfo<'info>,
 
-    #[account(mut)]
+    #[account(mut, close = authority)]
     pub trove: ProgramAccount<'info, state::Trove>,
 
     #[account(address = spl_token::ID)]
@@ -450,7 +431,7 @@ pub struct LiquidateTrove<'info> {
     #[account(signer, mut)]
     pub authority: AccountInfo<'info>,
 
-    #[account(mut)]
+    #[account(mut, close = authority)]
     pub trove: ProgramAccount<'info, state::Trove>,
 
     // TODO: ask PS if this one is system_program

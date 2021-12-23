@@ -25,3 +25,4 @@ thiserror = "1.0.24"
 solana-program-test = "1.8.5"
 solana-sdk = "1.8.5"
 assert_matches = "1.5.0"
+spl-associated-token-account = { version = "1.0.2", features = ["no-entrypoint"] }
