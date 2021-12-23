@@ -11,9 +11,11 @@ use solana_sdk::{system_instruction, system_program};
 use std::mem::size_of;
 use std::str::FromStr;
 
+use nexfin_program::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 use nexfin_program::state::Trove;
+
 #[tokio::test]
-async fn test_trove() {
+async fn test_trove_borrow() {
     let program_id = Pubkey::from_str("g6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS").unwrap();
     let program_test = ProgramTest::new(
         "nexfin_program",
@@ -67,4 +69,11 @@ async fn test_trove() {
     assert_eq!(trove_state.is_received, false);
     assert_eq!(trove_state.borrow_amount, borrow_amount);
     assert_eq!(trove_state.lamports_amount, lamports);
+    assert_eq!(trove_state.depositor_fee, get_depositors_fee(borrow_amount));
+    assert_eq!(trove_state.team_fee, get_team_fee(borrow_amount));
+    assert_eq!(
+        trove_state.amount_to_close,
+        get_trove_debt_amount(borrow_amount)
+    );
+    assert_eq!(trove_state.owner, authority.pubkey());
 }
