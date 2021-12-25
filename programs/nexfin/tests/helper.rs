@@ -3,8 +3,10 @@
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::solana_program::{instruction::Instruction, program_pack::Pack};
 use anchor_lang::{InstructionData, ToAccountMetas};
+use anchor_spl::token::transfer;
 use assert_matches::assert_matches;
 use nexfin_program::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
+use nexfin_program::params;
 use nexfin_program::state::Trove;
 use solana_program_test::BanksClient;
 use solana_program_test::{processor, tokio, ProgramTest};
@@ -15,6 +17,7 @@ use solana_sdk::{commitment_config::CommitmentLevel, system_instruction, system_
 use spl_associated_token_account;
 use std::mem::size_of;
 use std::str::FromStr;
+
 pub async fn process_and_assert_ok(
     instructions: &[Instruction],
     payer: &Keypair,
@@ -63,7 +66,7 @@ impl InitResult {
 }
 
 pub async fn setup() -> InitResult {
-    let program_id = Pubkey::from_str("g6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS").unwrap();
+    let program_id = Pubkey::from_str("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS").unwrap();
     let program_test = ProgramTest::new(
         "nexfin_program",
         program_id,
@@ -107,6 +110,8 @@ pub async fn initialize_mint(
     authority: &Pubkey,
     decimals: u8,
 ) {
+    // Fund authority
+
     let rent = banks_client.get_rent().await.unwrap();
     let token_mint_account_rent = rent.minimum_balance(spl_token::state::Mint::LEN);
     let recent_blockhash = banks_client.get_recent_blockhash().await.unwrap();

@@ -121,9 +121,63 @@ async fn test_close_trove() {
     assert_eq!(trove_account, None);
 }
 
-// #[tokio::test]
-// async fn test_liquidate_trove() {
-//     let init = helper::setup().await;
+#[tokio::test]
+async fn test_liquidate_trove() {
+    let init = helper::setup().await;
+
+    let program_id = init.program_id;
+    let authority = init.authority();
+    let trove = init.trove();
+    let payer = init.payer();
+    let token_mint = init.token_mint();
+    let mut banks_client = init.banks_client;
+
+    let borrow_amount = 100;
+    let lamports = 100;
+    let init_trove = Instruction {
+        program_id,
+        accounts: nexfin_program::accounts::Borrow {
+            authority: authority.pubkey(),
+            trove: trove.pubkey(),
+            rent: sysvar::rent::ID,
+        }
+        .to_account_metas(None),
+        data: nexfin_program::instruction::Borrow {
+            borrow_amount,
+            lamports,
+        }
+        .data(),
+    };
+    process_and_assert_ok(
+        &[init_trove],
+        &payer,
+        &[&payer, &authority],
+        &mut banks_client,
+    )
+    .await;
+
+    let user_ata = spl_associated_token_account::get_associated_token_address(
+        &authority.pubkey(),
+        &token_mint.pubkey(),
+    );
+    let inx = Instruction {
+        program_id,
+        accounts: nexfin_program::accounts::LiquidateTrove {
+            authority: authority.pubkey(),
+            trove: trove.pubkey(),
+            trove_owner: params::SYSTEM_ACCOUNT_ADDRESS,
+        }
+        .to_account_metas(None),
+        data: nexfin_program::instruction::LiquidateTrove {}.data(),
+    };
+
+    return;
+    process_and_assert_ok(&[inx], &payer, &[&payer, &authority], &mut banks_client).await;
+
+    let trove_account = banks_client.get_account(trove.pubkey()).await.unwrap();
+
+    assert_eq!(trove_account, None);
+}
 
 //     let program_id = init.program_id;
 //     let authority = init.authority();
