@@ -307,9 +307,6 @@ pub mod nexfin {
         let price_oracle = Price::load(&oracle).unwrap();
 
         msg!("Price_oracle price {:?}", price_oracle.agg.price);
-        // let ref mut price = &mut ctx.accounts.price_info;
-        // // Save last price, do liquid here if need
-        // price.price = price_oracle.agg.price;
 
         Ok(())
     }
@@ -331,18 +328,7 @@ pub struct SetPrice<'info> {
 #[derive(Accounts)]
 #[instruction(bump: u8)]
 pub struct LoadPrice<'info> {
-    // #[account(
-    //     init_if_needed,
-    //     payer = authority,
-    //     seeds = [b"price"],
-    //     bump = bump
-    // )]
-    // pub price_info: ProgramAccount<'info, state::Price>,
     pub price: AccountInfo<'info>,
-    // #[account(signer, mut)]
-    // pub authority: AccountInfo<'info>,
-    // pub rent: Sysvar<'info, Rent>,
-    // pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

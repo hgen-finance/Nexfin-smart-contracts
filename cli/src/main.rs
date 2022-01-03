@@ -76,21 +76,13 @@ fn main() {
         let (price_pda, bump) = Pubkey::find_program_address(&[b"price"], &program_id);
         let rs = program_client
             .request()
-            .accounts(nexfin_program::accounts::LoadPrice {
-                price: price,
-                // price_info: price_pda,
-                // authority: payer.pubkey(),
-                // rent: sysvar::ID,
-                // system_program: system_program::id(),
-            })
+            .accounts(nexfin_program::accounts::LoadPrice { price: price })
             .args(nexfin_program::instruction::LoadPrice { bump })
-            .signer(&payer)
             .send();
         match rs {
             Ok(s) => {
                 println!("TX: {}", s);
-                let acc =
-                    program_client.account::<nexfin_program::state::Price>(price);
+                let acc = program_client.account::<nexfin_program::state::Price>(price);
                 println!("{:?}", acc);
                 println!("===================");
             }
