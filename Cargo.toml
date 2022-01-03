@@ -1,4 +1,6 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/nexfin",
+    "programs/nexfin_old",
+    "cli"
 ]

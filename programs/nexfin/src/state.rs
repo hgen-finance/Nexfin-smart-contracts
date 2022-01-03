@@ -30,6 +30,12 @@ pub struct Trove {
 
 #[account]
 #[derive(Default, Debug)]
+pub struct Price {
+    pub price: i64,
+}
+
+#[account]
+#[derive(Default, Debug)]
 pub struct Escrow {
     pub is_initialized: bool,
     pub initializer_pubkey: Pubkey,

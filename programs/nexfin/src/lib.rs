@@ -3,7 +3,9 @@ use std::mem::size_of;
 pub mod error;
 pub mod helpers;
 pub mod params;
+pub mod pc;
 pub mod state;
+use pc::Price;
 
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 use crate::params::SYSTEM_ACCOUNT_ADDRESS;
@@ -298,6 +300,49 @@ pub mod nexfin {
 
         Ok(())
     }
+
+    pub fn load_price(ctx: Context<LoadPrice>, bump: u8) -> ProgramResult {
+        msg!("Calling load price");
+        let oracle = &ctx.accounts.price;
+        let price_oracle = Price::load(&oracle).unwrap();
+
+        msg!("Price_oracle price {:?}", price_oracle.agg.price);
+        // let ref mut price = &mut ctx.accounts.price_info;
+        // // Save last price, do liquid here if need
+        // price.price = price_oracle.agg.price;
+
+        Ok(())
+    }
+
+    pub fn set_price(ctx: Context<SetPrice>, price: i64) -> ProgramResult {
+        let oracle = &ctx.accounts.price;
+        let mut price_oracle = Price::load(&oracle).unwrap();
+        price_oracle.agg.price = price as i64;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct SetPrice<'info> {
+    #[account(mut)]
+    pub price: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(bump: u8)]
+pub struct LoadPrice<'info> {
+    // #[account(
+    //     init_if_needed,
+    //     payer = authority,
+    //     seeds = [b"price"],
+    //     bump = bump
+    // )]
+    // pub price_info: ProgramAccount<'info, state::Price>,
+    pub price: AccountInfo<'info>,
+    // #[account(signer, mut)]
+    // pub authority: AccountInfo<'info>,
+    // pub rent: Sysvar<'info, Rent>,
+    // pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
