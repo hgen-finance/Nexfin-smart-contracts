@@ -3,3 +3,5 @@
 /target/
 .idea
 test-ledger
+node_modules/*
+.DS_Stores

@@ -1,0 +1,107 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'nexfin_program'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=nexfin-program"],
+        "filter": {
+          "name": "nexfin_program",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'test_trove'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=test_trove",
+          "--package=nexfin-program"
+        ],
+        "filter": {
+          "name": "test_trove",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'test_coin'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=test_coin",
+          "--package=nexfin-program"
+        ],
+        "filter": {
+          "name": "test_coin",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'helper'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=helper",
+          "--package=nexfin-program"
+        ],
+        "filter": {
+          "name": "helper",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'pyth'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=pyth"],
+        "filter": {
+          "name": "pyth",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'cli'",
+      "cargo": {
+        "args": ["build", "--bin=cli", "--package=cli"],
+        "filter": {
+          "name": "cli",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
