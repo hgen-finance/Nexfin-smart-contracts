@@ -13,7 +13,7 @@ pub fn check_min_collateral_include_gas_fee(
 pub fn get_trove_sent_amount(
     amount: u64
 ) -> u64 {
-    get_trove_debt_amount(amount) - get_depositors_fee(amount) - get_team_fee(amount)
+    get_trove_debt_amount(amount)*1000 - get_depositors_fee(amount) - get_team_fee(amount)
 }
 
 pub fn get_trove_debt_amount(
@@ -27,13 +27,13 @@ pub fn get_trove_debt_amount(
 pub fn get_depositors_fee(
     amount: u64
 ) -> u64 {
-    get_trove_debt_amount(amount) * (DEPOSIT_FEE) / 1000
+    get_trove_debt_amount(amount) * (DEPOSIT_FEE)
 }
 
 pub fn get_team_fee(
     amount: u64
 ) -> u64 {
-    get_trove_debt_amount(amount) * (TEAM_FEE) / 1000
+    get_trove_debt_amount(amount) * (TEAM_FEE)
 }
 
 fn get_lamport_price(lamports: u64) -> f64 {

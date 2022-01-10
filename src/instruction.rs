@@ -145,6 +145,19 @@ pub enum LiquityInstruction {
     UpdateTrove {
         amount: u64,
     },
+
+    /// Add Borrow amount
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The account to store trove
+    /// 2. `[]` The rent sysvar
+    AddBorrow {
+        borrow_amount: u64,
+        lamports: u64
+    }
 }
 
 
@@ -220,6 +233,14 @@ impl LiquityInstruction {
                 let (amount, _rest) = Self::unpack_u64(rest)?;
                 Self::UpdateTrove {
                     amount
+                }
+            },
+            12 => {
+                let (borrow_amount, rest) = Self::unpack_u64(rest)?;
+                let (lamports, _rest) = Self::unpack_u64(rest)?;
+                Self::AddBorrow {
+                    borrow_amount,
+                    lamports
                 }
             }
             _ => return Err(InvalidInstruction.into()),

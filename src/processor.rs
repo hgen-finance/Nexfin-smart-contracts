@@ -69,6 +69,10 @@ impl Processor {
                 msg!("Instruction Add Deposit Reward");
                 Self::process_add_deposit_reward(accounts, coin, governance, token, program_id)
             }
+            LiquityInstruction::AddBorrow { borrow_amount, lamports } => {
+                msg!("Instruction Add Borrow");
+                Self::process_add_borrow(accounts, borrow_amount, lamports, program_id)
+            }
         }
     }
 
@@ -179,7 +183,7 @@ impl Processor {
         }
 
         //TODO set this up for later
-        //let sys_acc = next_account_info(accounts_info_iter)?;
+        // let sys_acc = next_account_info(accounts_info_iter)?;
 
         
         // if !sys_acc.is_signer {
@@ -391,7 +395,6 @@ impl Processor {
     }
 
 
-    //withdraw amount from the trove
     fn process_update_trove(
         accounts: &[AccountInfo],
         amount: u64,
@@ -507,8 +510,6 @@ impl Processor {
             trove.amount_to_close * 1000000000
         )?;
 
-        msg!("amount to close is {}", trove.amount_to_close);
-
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
         invoke(
             &transfer_to_initializer_ix,
@@ -580,6 +581,51 @@ impl Processor {
 
         msg!("trove owner is {}", trove.owner);
         msg!("the borrow amount is {}", trove.borrow_amount);
+        Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
+
+        Ok(())
+    }
+
+    fn process_add_borrow(
+        accounts: &[AccountInfo],
+        borrow_amount: u64,
+        lamports: u64,
+        _program_id: &Pubkey,
+    ) -> ProgramResult
+    {
+
+        let accounts_info_iter = &mut accounts.iter();
+        let borrower = next_account_info(accounts_info_iter)?;
+
+        if !borrower.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let trove_account = next_account_info(accounts_info_iter)?;
+
+        let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
+
+        if trove.is_liquidated {
+            return Err(LiquityError::TroveAlreadyLiquidated.into());
+        }
+
+        msg!("the borrow key is {}", *borrower.key);
+        msg!("the trove owner key is {}", trove.owner);
+        if *borrower.key != trove.owner {
+            return Err(LiquityError::OnlyForTroveOwner.into());
+        }
+
+
+        msg!("reached up to here");
+        let _temp_borrowed_amount = trove.amount_to_close;
+
+        trove.lamports_amount = trove.lamports_amount.add(lamports);
+        trove.amount_to_close = trove.amount_to_close.add(get_trove_debt_amount(borrow_amount));
+        trove.borrow_amount = trove.borrow_amount.add(borrow_amount);
+        trove.lamports_amount = trove.lamports_amount;
+        trove.depositor_fee = trove.depositor_fee.add(get_depositors_fee(borrow_amount));
+        trove.team_fee = trove.team_fee.add(get_team_fee(borrow_amount));
+
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
         Ok(())
