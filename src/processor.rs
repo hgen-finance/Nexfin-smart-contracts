@@ -615,8 +615,6 @@ impl Processor {
             return Err(LiquityError::OnlyForTroveOwner.into());
         }
 
-
-        msg!("reached up to here");
         let _temp_borrowed_amount = trove.amount_to_close;
 
         trove.lamports_amount = trove.lamports_amount.add(lamports);
