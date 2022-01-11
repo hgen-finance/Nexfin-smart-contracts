@@ -9,8 +9,8 @@ pub const TOTAL_FEE: u64 = DEPOSIT_FEE + TEAM_FEE;
 pub const DEPOSIT_FEE: u64 = 4;
 pub const TEAM_FEE: u64 = 1;
 
-pub const MIN_DEPOSIT_FEE: u64 = 4000;
-pub const MIN_TEAM_FEE: u64 = 1000;
+pub const MIN_DEPOSIT_FEE: u64 = 400;
+pub const MIN_TEAM_FEE: u64 = 100;
 
 pub const GENS_TOKEN_ADDRESS: &str = "2U3Mf4umT4CpLhhdwpfmGiktyvhdrLrNNv4z4GgsXNMe";
 
