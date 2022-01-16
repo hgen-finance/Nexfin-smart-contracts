@@ -20,7 +20,8 @@ pub enum LiquityInstruction {
     Borrow {
         /// the amount the taker expects to be paid in the other token, as a u64 because that's the max possible supply of a token
         borrow_amount: u64,
-        lamports: u64
+        lamports: u64,
+        bump_seed: u8
     },
 
     /// Close Trove
@@ -97,7 +98,8 @@ pub enum LiquityInstruction {
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Deposit account
     WithdrawDeposit {
-        amount: u64
+        amount: u64,
+        bump_seed:u8
     },
 
     ///  Claim deposit reward
@@ -156,7 +158,8 @@ pub enum LiquityInstruction {
     /// 2. `[]` The rent sysvar
     AddBorrow {
         borrow_amount: u64,
-        lamports: u64
+        lamports: u64,
+        bump_seed: u8
     }
 }
 
@@ -170,10 +173,12 @@ impl LiquityInstruction {
         Ok(match tag {
             0 => {
                 let (borrow_amount, rest) = Self::unpack_u64(rest)?;
-                let (lamports, _rest) = Self::unpack_u64(rest)?;
+                let (lamports, next) = Self::unpack_u64(rest)?;
+                let (bump_seed, _) = Self::unpack_u8(next)?;
                 Self::Borrow {
                     borrow_amount,
-                    lamports
+                    lamports,
+                    bump_seed
                 }
             },
             1 => {
@@ -207,9 +212,11 @@ impl LiquityInstruction {
                 }
             },
             7 => {
-                let (amount, _rest) = Self::unpack_u64(rest)?;
+                let (amount, next) = Self::unpack_u64(rest)?;
+                let (bump_seed, _) = Self::unpack_u8(next)?;
                 Self::WithdrawDeposit {
-                    amount
+                    amount,
+                    bump_seed
                 }
             },
             8 => {
@@ -237,10 +244,12 @@ impl LiquityInstruction {
             },
             12 => {
                 let (borrow_amount, rest) = Self::unpack_u64(rest)?;
-                let (lamports, _rest) = Self::unpack_u64(rest)?;
+                let (lamports, next) = Self::unpack_u64(rest)?;
+                let (bump_seed, _) = Self::unpack_u8(next)?;
                 Self::AddBorrow {
                     borrow_amount,
-                    lamports
+                    lamports,
+                    bump_seed,
                 }
             }
             _ => return Err(InvalidInstruction.into()),
@@ -260,4 +269,23 @@ impl LiquityInstruction {
             .ok_or(LiquityError::InstructionUnpackError)?;
         Ok((value, rest))
     }
+
+    fn unpack_u8(input: &[u8]) -> Result<(u8, &[u8]), ProgramError> {
+        if input.len() < 0 {
+            msg!("u8 cannot be unpacked");
+            return Err(LiquityError::InstructionUnpackError.into());
+        }
+        // let (bytes, rest) = input.split_at(1);
+        let (value, rest) = input.split_first()
+        .ok_or(ProgramError::InvalidInstructionData)?;
+        // let value = bytes
+        //     .get(..1)
+        //     .and_then(|slice| slice.try_into().ok())
+        //     .map(u8::from_le_bytes)
+        //     .ok_or(LiquityError::InstructionUnpackError)?;
+
+        msg!("the bump seed is {:?}", *value);
+        Ok((*value, rest))
+    }
+
 }

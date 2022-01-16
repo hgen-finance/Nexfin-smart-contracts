@@ -2,17 +2,21 @@ use solana_program::{
     account_info::{AccountInfo, next_account_info},
     entrypoint::ProgramResult,
     msg,
-    program::{invoke},
+    program::{invoke, invoke_signed},
     program_error::ProgramError,
     program_pack::{IsInitialized, Pack},
     pubkey::Pubkey,
     sysvar::{rent::Rent, Sysvar},
+    system_instruction,
 };
 use crate::{error::LiquityError, helpers, instruction::LiquityInstruction};
 use crate::state::{Trove, Deposit};
 use std::ops::{Sub, Add};
-use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
-use crate::params::SYSTEM_ACCOUNT_ADDRESS;
+use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount, get_trove_sent_amount};
+use crate::params::{SYSTEM_ACCOUNT_ADDRESS};
+
+use std::convert::TryInto;
+
 
 pub struct Processor;
 
@@ -21,9 +25,9 @@ impl Processor {
         let instruction = LiquityInstruction::unpack(instruction_data)?;
 
         match instruction {
-            LiquityInstruction::Borrow { borrow_amount, lamports } => {
+            LiquityInstruction::Borrow { borrow_amount, lamports, bump_seed } => {
                 msg!("Instruction Borrow");
-                Self::process_borrow(accounts, borrow_amount, lamports, program_id)
+                Self::process_borrow(accounts, borrow_amount, lamports, bump_seed, program_id)
             }
             LiquityInstruction::UpdateTrove{amount} => {
                 msg!("Instruction Update Trove");
@@ -53,9 +57,9 @@ impl Processor {
                 msg!("Instruction Add Deposit");
                 Self::process_add_deposit(accounts, amount, program_id)
             }
-            LiquityInstruction::WithdrawDeposit {amount} => {
+            LiquityInstruction::WithdrawDeposit {amount, bump_seed} => {
                 msg!("Instruction Withdraw Deposit");
-                Self::process_withdraw_deposit(accounts, amount, program_id)
+                Self::process_withdraw_deposit(accounts, amount, bump_seed, program_id)
             }
             LiquityInstruction::ClaimDepositReward {} => {
                 msg!("Instruction Claim Deposit Reward");
@@ -69,9 +73,9 @@ impl Processor {
                 msg!("Instruction Add Deposit Reward");
                 Self::process_add_deposit_reward(accounts, coin, governance, token, program_id)
             }
-            LiquityInstruction::AddBorrow { borrow_amount, lamports } => {
+            LiquityInstruction::AddBorrow { borrow_amount, lamports, bump_seed } => {
                 msg!("Instruction Add Borrow");
-                Self::process_add_borrow(accounts, borrow_amount, lamports, program_id)
+                Self::process_add_borrow(accounts, borrow_amount, lamports, bump_seed, program_id)
             }
         }
     }
@@ -170,22 +174,38 @@ impl Processor {
     fn process_withdraw_deposit(
         accounts: &[AccountInfo],
         amount: u64,
-        _program_id: &Pubkey,
+        bump_seed: u8,
+        program_id: &Pubkey,
     ) -> ProgramResult
     {
         msg!("Trying to withraw the gens from the pool");
-        let accounts_info_iter = &mut accounts.iter();
+        let accounts_info_iter = &mut accounts.iter();       
 
-        let depositor = next_account_info(accounts_info_iter)?;
+        let token_program = next_account_info(accounts_info_iter)?;
+        let mint_addr = next_account_info(accounts_info_iter)?;
+        let token_mint_acc = next_account_info(accounts_info_iter)?;
+        let depositor_acc_info = next_account_info(accounts_info_iter)?;
+        let deposit_account = next_account_info(accounts_info_iter)?;
+        let pda_mint = next_account_info(accounts_info_iter)?;
 
-        if !depositor.is_signer {
-            return Err(ProgramError::MissingRequiredSignature);
+        // Checking if passed PDA and expected PDA are equal
+        // TODO set the main wallet as seed and 3 seeds
+        let signers_seeds: &[&[u8]; 2] = &[
+            b"test",
+            &[bump_seed],
+        ];
+
+        msg!("matching the passed pda");
+        let pda = Pubkey::create_program_address(signers_seeds, program_id)?;
+
+        if pda.ne(&pda_mint.key) {
+            return Err(ProgramError::InvalidAccountData);
         }
 
-        //TODO set this up for later
-        // let sys_acc = next_account_info(accounts_info_iter)?;
+        //  if !depositor.is_signer {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
-        
         // if !sys_acc.is_signer {
         //     return Err(ProgramError::MissingRequiredSignature);
         // }
@@ -194,7 +214,14 @@ impl Processor {
         //     return Err(ProgramError::MissingRequiredSignature);
         // }
 
-        let deposit_account = next_account_info(accounts_info_iter)?;
+        let transfer_to_initializer_ix = spl_token::instruction::mint_to(
+            token_program.key,
+            mint_addr.key,
+            token_mint_acc.key,
+            pda_mint.key,
+            &[],
+            amount * 1_000_000_000,
+        )?;
 
         let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
 
@@ -206,6 +233,17 @@ impl Processor {
         msg!("the new deposit token amount is {}", deposit.token_amount);
 
         Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
+
+        msg!("Calling the token program to mint token to users wallet...");
+        invoke_signed(
+            &transfer_to_initializer_ix,
+            &[
+                mint_addr.clone(),
+                token_mint_acc.clone(),
+                pda_mint.clone(),
+            ],
+            &[&[b"test", &[bump_seed]]]
+        )?;
 
         Ok(())
     }
@@ -535,17 +573,22 @@ impl Processor {
         Ok(())
     }
 
+    // TODO: check if the pda pass matches with the pda signing in the transaction before invoking signed instruction through PDA
     fn process_borrow(
         accounts: &[AccountInfo],
         borrow_amount: u64,
         lamports: u64,
-        _program_id: &Pubkey,
+        bump_seed: u8,
+        program_id: &Pubkey,
     ) -> ProgramResult
     {
+
         // check collateral
         if !helpers::check_min_collateral_include_gas_fee(borrow_amount, lamports) {
             return Err(LiquityError::InvalidCollateral.into());
         }
+
+        // const ACCOUNT_DATA_LEN: usize = 1; // space for the account
 
         // Check accounts
         let accounts_info_iter = &mut accounts.iter();
@@ -559,11 +602,64 @@ impl Processor {
 
         let rent = &Rent::from_account_info(next_account_info(accounts_info_iter)?)?;
 
+        let token_program = next_account_info(accounts_info_iter)?;
+        let mint_addr = next_account_info(accounts_info_iter)?;
+        let token_mint_acc = next_account_info(accounts_info_iter)?;
+        let pda_mint = next_account_info(accounts_info_iter)?;
+
         if !rent.is_exempt(trove_account.lamports(), trove_account.data_len()) {
             return Err(LiquityError::NotRentExempt.into());
         }
 
-        // Create Trove
+        msg!("the accounts info is {:?}", pda_mint);
+
+        // Checking if passed PDA and expected PDA are equal
+        // TODO set the main wallet as seed
+        let signers_seeds: &[&[u8]; 2] = &[
+            b"test",
+            &[bump_seed],
+        ];
+
+        msg!("matching the passed pda");
+        let pda = Pubkey::create_program_address(signers_seeds, program_id)?;
+
+        if pda.ne(&pda_mint.key) {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // used to create a pda account (Check this)
+        // Assessing required lamports and creating transaction instruction
+        // let lamports_required = Rent::get()?.minimum_balance(ACCOUNT_DATA_LEN);
+        // let create_pda_account_ix = system_instruction::create_account(
+        //     &borrower.key,
+        //     &pda_mint.key,
+        //     lamports_required,
+        //     ACCOUNT_DATA_LEN.try_into().unwrap(),
+        //     &program_id,
+        // );
+        // // Invoking the instruction but with PDAs as additional signer
+        // invoke_signed(
+        //     &create_pda_account_ix,
+        //     &[
+        //         borrower.clone(),
+        //         pda_mint.clone(),
+        //         sys_program.clone(),
+        //     ],
+        //     &[signers_seeds],
+        // )?;
+
+        let transfer_to_initializer_ix = spl_token::instruction::mint_to(
+            token_program.key,
+            mint_addr.key,
+            token_mint_acc.key,
+            pda_mint.key,
+            &[],
+            get_trove_sent_amount(borrow_amount)* 1_000_000,
+        )?;
+
+        
+
+        // // Create Trove
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
@@ -583,13 +679,26 @@ impl Processor {
         msg!("the borrow amount is {}", trove.borrow_amount);
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
+        msg!("Calling the token program to mint token to users wallet...");
+        invoke_signed(
+            &transfer_to_initializer_ix,
+            &[
+                mint_addr.clone(),
+                token_mint_acc.clone(),            
+                pda_mint.clone(),
+            ],
+            &[signers_seeds] // passing bump seed to reduce the compute load
+        )?;
+
         Ok(())
+    
     }
 
     fn process_add_borrow(
         accounts: &[AccountInfo],
         borrow_amount: u64,
         lamports: u64,
+        bump_seed: u8,
         _program_id: &Pubkey,
     ) -> ProgramResult
     {
@@ -602,9 +711,51 @@ impl Processor {
         }
 
         let trove_account = next_account_info(accounts_info_iter)?;
+        msg!("the trove account data is {:?}", trove_account);
+        let rent = &Rent::from_account_info(next_account_info(accounts_info_iter)?)?;
+
+        if !rent.is_exempt(trove_account.lamports(), trove_account.data_len()) {
+            return Err(LiquityError::NotRentExempt.into());
+        }
+
+        let token_program = next_account_info(accounts_info_iter)?;
+        let mint_addr = next_account_info(accounts_info_iter)?;
+        let token_mint_acc = next_account_info(accounts_info_iter)?;
+        let pda_mint = next_account_info(accounts_info_iter)?;
+
+         // Checking if passed PDA and expected PDA are equal
+         // TODO set the main wallet as seed
+        let signers_seeds: &[&[u8]; 2] = &[
+            b"test",
+            &[bump_seed],
+        ];
+
+        msg!("matching the passed pda");
+        msg!("the program id is {:?}", _program_id);
+        let pda = Pubkey::create_program_address(signers_seeds, _program_id)?;
+
+        msg!("the client pda is {:?}", &pda_mint.key);
+        msg!("the program pda is {:?}", &pda);
+        if pda.ne(&pda_mint.key) {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        msg!("reached here");
+
+        let transfer_to_initializer_ix = spl_token::instruction::mint_to(
+            token_program.key,
+            mint_addr.key,
+            token_mint_acc.key,
+            pda_mint.key,
+            &[pda_mint.key],
+            get_trove_sent_amount(borrow_amount)* 1_000_000,
+        )?;
+
+        
 
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
 
+        msg!("this is working !!");
         if trove.is_liquidated {
             return Err(LiquityError::TroveAlreadyLiquidated.into());
         }
@@ -625,6 +776,17 @@ impl Processor {
         trove.team_fee = trove.team_fee.add(get_team_fee(borrow_amount));
 
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
+
+        msg!("Calling the token program to mint token to users wallet...");
+        invoke_signed(
+            &transfer_to_initializer_ix,
+            &[
+                mint_addr.clone(),
+                token_mint_acc.clone(),            
+                pda_mint.clone(),
+            ],
+            &[signers_seeds] // passing bump seed to reduce the compute load
+        )?;
 
         Ok(())
     }
@@ -659,4 +821,8 @@ impl Processor {
 
         Ok(())
     }
+
+
+
+
 }
