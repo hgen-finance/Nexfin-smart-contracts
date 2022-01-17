@@ -16,6 +16,10 @@ pub fn get_trove_sent_amount(
     get_trove_debt_amount(amount)*1000 - get_depositors_fee(amount) - get_team_fee(amount)
 }
 
+pub fn add_fees_on_pay(amount: u64) -> u64{
+    amount * 1000 + get_team_fee(amount) + get_depositors_fee(amount)
+}
+
 pub fn get_trove_debt_amount(
     amount: u64
 ) -> u64 {

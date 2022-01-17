@@ -34,7 +34,9 @@ pub enum LiquityInstruction {
     /// 2. `[]` Token program
     /// 3. `[]` User token acc
     /// 4. `[]` Mint Token key
-    CloseTrove {},
+    CloseTrove {
+        amount: u64,
+    },
 
     /// Liquidate Trove
     ///
@@ -182,7 +184,10 @@ impl LiquityInstruction {
                 }
             },
             1 => {
-                Self::CloseTrove {}
+                let (amount, rest) = Self::unpack_u64(rest)?;
+                Self::CloseTrove {
+                    amount
+                }
             },
             2 => {
                 Self::LiquidateTrove {}

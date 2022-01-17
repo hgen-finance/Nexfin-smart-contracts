@@ -12,7 +12,7 @@ use solana_program::{
 use crate::{error::LiquityError, helpers, instruction::LiquityInstruction};
 use crate::state::{Trove, Deposit};
 use std::ops::{Sub, Add};
-use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount, get_trove_sent_amount};
+use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount, get_trove_sent_amount, add_fees_on_pay};
 use crate::params::{SYSTEM_ACCOUNT_ADDRESS};
 
 use std::convert::TryInto;
@@ -33,9 +33,9 @@ impl Processor {
                 msg!("Instruction Update Trove");
                 Self::process_update_trove(accounts, amount, program_id)
             }
-            LiquityInstruction::CloseTrove {} => {
+            LiquityInstruction::CloseTrove {amount} => {
                 msg!("Instruction Close Trove");
-                Self::process_close_trove(accounts, program_id)
+                Self::process_close_trove(accounts, amount, program_id)
             }
             LiquityInstruction::LiquidateTrove {} => {
                 msg!("Instruction Liquidate Trove");
@@ -295,7 +295,7 @@ impl Processor {
             token.key,
             depositor.key,
             &[&depositor.key],
-            amount * 1000000000,
+            amount * 1_000_000_000,
         )?;
 
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
@@ -457,8 +457,6 @@ impl Processor {
         let token_program = next_account_info(accounts_info_iter)?;
         let temp_pda_token = next_account_info(accounts_info_iter)?;
         let token = next_account_info(accounts_info_iter)?;
-
-
         
         let transfer_to_initializer_ix = spl_token::instruction::burn(
             token_program.key,
@@ -466,7 +464,7 @@ impl Processor {
             token.key, // token mint address key
             borrower.key, // authority key
             &[&borrower.key], // signer pub key
-            amount * 1000000000
+            add_fees_on_pay(amount) * 1_000_000
         )?;
         
 
@@ -510,6 +508,7 @@ impl Processor {
 
     fn process_close_trove(
         accounts: &[AccountInfo],
+        amount: u64,
         _program_id: &Pubkey,
     ) -> ProgramResult
     {
@@ -538,6 +537,10 @@ impl Processor {
         msg!("the token program key is {}", token_program.key);
         msg!("the amount to be closed is  {}", trove.amount_to_close);
 
+        // if trove.amount_to_close.ne(&add_fees_on_pay(amount)){
+        //     return Err(LiquityError::ExpectedAmountMismatch.into());
+        // }
+
         
         let transfer_to_initializer_ix = spl_token::instruction::burn(
             token_program.key,
@@ -545,7 +548,7 @@ impl Processor {
             token.key, // token mint address key
             borrower.key, // authority key
             &[&borrower.key], // signer pub key
-            trove.amount_to_close * 1000000000
+            add_fees_on_pay(amount)*1_000_000
         )?;
 
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
