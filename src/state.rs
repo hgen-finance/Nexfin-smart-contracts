@@ -3,8 +3,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
+ 
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
-use std::convert::TryInto;
+
 
 pub struct Deposit {
     pub is_initialized: bool,

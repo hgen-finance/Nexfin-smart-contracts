@@ -184,7 +184,7 @@ impl LiquityInstruction {
                 }
             },
             1 => {
-                let (amount, rest) = Self::unpack_u64(rest)?;
+                let (amount, _rest) = Self::unpack_u64(rest)?;
                 Self::CloseTrove {
                     amount
                 }
@@ -276,7 +276,7 @@ impl LiquityInstruction {
     }
 
     fn unpack_u8(input: &[u8]) -> Result<(u8, &[u8]), ProgramError> {
-        if input.len() < 0 {
+        if !input.len() > 0 {
             msg!("u8 cannot be unpacked");
             return Err(LiquityError::InstructionUnpackError.into());
         }

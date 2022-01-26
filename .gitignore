@@ -3,3 +3,5 @@
 /target/
 .idea
 test-ledger
+#ignore the coderrect for soteria
+.coderrect

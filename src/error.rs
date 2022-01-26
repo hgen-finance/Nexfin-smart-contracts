@@ -128,6 +128,9 @@ pub enum LiquityError {
     /// Withdraw amount too large
     #[error("Withdraw amount too large")]
     WithdrawTooLarge,
+    /// attempt to withdraw amount larger than initial deposit
+    #[error("Withdraw amount exceeds the deposit amount")]
+    AttemptToWithdrawTooMuch,
 
     // 25
     /// Borrow amount too small

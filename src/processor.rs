@@ -7,7 +7,6 @@ use solana_program::{
     program_pack::{IsInitialized, Pack},
     pubkey::Pubkey,
     sysvar::{rent::Rent, Sysvar},
-    system_instruction,
 };
 use crate::{error::LiquityError, helpers, instruction::LiquityInstruction};
 use crate::state::{Trove, Deposit};
@@ -15,7 +14,8 @@ use std::ops::{Sub, Add};
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount, get_trove_sent_amount, add_fees_on_pay};
 use crate::params::{SYSTEM_ACCOUNT_ADDRESS};
 
-use std::convert::TryInto;
+use std::str::FromStr;
+
 
 
 pub struct Processor;
@@ -88,16 +88,18 @@ impl Processor {
         _program_id: &Pubkey,
     ) -> ProgramResult
     {
+        let _system_account: Pubkey = Pubkey::from_str("54sdQpgCMN1gQRG7xwTmCnq9vxdbPy8akfP1KrbeZ46t").unwrap();
+
         let accounts_info_iter = &mut accounts.iter();
-        let depositor = next_account_info(accounts_info_iter)?;
+        let _depositor = next_account_info(accounts_info_iter)?;
 
-        if !depositor.is_signer {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // if !depositor.is_signer {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
-        if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // if *depositor.key != SYSTEM_ACCOUNT{
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
         let deposit_account = next_account_info(accounts_info_iter)?;
 
@@ -198,13 +200,13 @@ impl Processor {
         msg!("matching the passed pda");
         let pda = Pubkey::create_program_address(signers_seeds, program_id)?;
 
-        if pda.ne(&pda_mint.key) {
+        if pda.ne(pda_mint.key) {
             return Err(ProgramError::InvalidAccountData);
         }
 
-        //  if !depositor.is_signer {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
+         if !depositor_acc_info.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
 
         // if !sys_acc.is_signer {
         //     return Err(ProgramError::MissingRequiredSignature);
@@ -214,6 +216,18 @@ impl Processor {
         //     return Err(ProgramError::MissingRequiredSignature);
         // }
 
+
+        // verify the token program 
+        if token_program.key != &spl_token::id(){
+            return Err(ProgramError::InvalidAccountData)
+        }
+
+        let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;  
+
+        if amount > deposit.token_amount{
+            return Err(LiquityError::AttemptToWithdrawTooMuch.into());
+        }
+
         let transfer_to_initializer_ix = spl_token::instruction::mint_to(
             token_program.key,
             mint_addr.key,
@@ -222,15 +236,10 @@ impl Processor {
             &[],
             amount * 1_000_000_000,
         )?;
-
-        let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
-
-        if amount > deposit.token_amount {
-            return Err(LiquityError::InsufficientLiquidity.into());
-        }
+      
 
         deposit.token_amount = deposit.token_amount.sub(amount);
-        msg!("the new deposit token amount is {}", deposit.token_amount);
+        msg!("The new deposit token amount is {}", deposit.token_amount);
 
         Deposit::pack(deposit, &mut deposit_account.data.borrow_mut())?;
 
@@ -248,6 +257,19 @@ impl Processor {
         Ok(())
     }
 
+
+    // TODO: Add a pda for burning tokens
+    // TODO: check for rent expemption on deposit account
+    // TODO: Check depositor is signer
+    // TODO: Check the authority key is signer (use pda)
+    // TODO: Check the owner of the authority key is the program id
+    // TODO: Check if the token program passed is valid
+    // TODO: Add a config account to check for the authority
+    // TODO: Check if the depositor has sufficent amount of token in the wallet (redundant)
+    // TODO: check if the deposit account is owned by the solana program
+    // TODO: Add admin as a signer
+    // TODO: Check admin pubkey with the config account admin field
+    // TODO: check if the config account is owned by the solana program
     fn process_add_deposit(
         accounts: &[AccountInfo],
         amount: u64,
@@ -263,6 +285,7 @@ impl Processor {
 
         let deposit_account = next_account_info(accounts_info_iter)?;
 
+        // checking rent exemption for deposit account
         let rent = &Rent::from_account_info(next_account_info(accounts_info_iter)?)?;
 
         if !rent.is_exempt(deposit_account.lamports(), deposit_account.data_len()) {
@@ -276,8 +299,15 @@ impl Processor {
         let temp_governance_token = next_account_info(accounts_info_iter)?;
         let token = next_account_info(accounts_info_iter)?;
         
+        // check the token program passed is valid 
+        if token_program.key != &spl_token::id() {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Check if the account is initialized
         if deposit.is_initialized {
-            deposit.token_amount = deposit.token_amount.add(amount);
+            // handle overflow
+            deposit.token_amount = deposit.token_amount.checked_add(amount).ok_or(ProgramError::InvalidArgument)?;
         } else {
             deposit.is_initialized = true;
             deposit.token_amount = amount;
@@ -289,16 +319,18 @@ impl Processor {
             deposit.owner = *depositor.key;
         }
 
+        // TODO add burn authority pda as a signer
         let transfer_to_initializer_ix = spl_token::instruction::burn(
             token_program.key,
             temp_pda_token.key,
             token.key,
             depositor.key,
-            &[&depositor.key],
+            &[depositor.key],
             amount * 1_000_000_000,
         )?;
 
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
+        // TODO add a invoke signed with pda for this
         invoke(
             &transfer_to_initializer_ix,
             &[
@@ -392,34 +424,36 @@ impl Processor {
         Ok(())
     }
 
+    // check this later
     fn process_liquidate_trove(
         accounts: &[AccountInfo],
         _program_id: &Pubkey,
     ) -> ProgramResult
     {
+        let _system_account: Pubkey = Pubkey::from_str("54sdQpgCMN1gQRG7xwTmCnq9vxdbPy8akfP1KrbeZ46t").unwrap();
         let accounts_info_iter = &mut accounts.iter();
-        let liquidator = next_account_info(accounts_info_iter)?;
+        // let liquidator = next_account_info(accounts_info_iter)?;
 
-        if !liquidator.is_signer {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
-
-        let trove_account = next_account_info(accounts_info_iter)?;
+        // if !liquidator.is_signer {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
         let sys_account = next_account_info(accounts_info_iter)?;
+        let trove_account = next_account_info(accounts_info_iter)?;
+        
 
-        if *sys_account.key != SYSTEM_ACCOUNT_ADDRESS {
-            msg!("Invalid d");
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // if *sys_account.key != SYSTEM_ACCOUNT {
+        //     msg!("Invalid d");
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
-        let trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
-        if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
-        }
+        let _trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
+        // if trove.is_liquidated {
+        //     return Err(LiquityError::TroveAlreadyLiquidated.into());
+        // }
 
-        if !trove.is_received {
-            return Err(LiquityError::TroveIsNotReceived.into());
-        }
+        // if !trove.is_received {
+        //     return Err(LiquityError::TroveIsNotReceived.into());
+        // }
 
         msg!("Send lamports to the sys acc");
         **sys_account.lamports.borrow_mut() = sys_account.lamports()
@@ -463,15 +497,14 @@ impl Processor {
             temp_pda_token.key, // token account key
             token.key, // token mint address key
             borrower.key, // authority key
-            &[&borrower.key], // signer pub key
+            &[borrower.key], // signer pub key
             add_fees_on_pay(amount) * 1_000_000
         )?;
-        
-
-        
 
         // update the amount to close price
         trove.amount_to_close = (trove.amount_to_close).sub(amount);
+        trove.depositor_fee =trove.depositor_fee.add(get_depositors_fee(amount));
+        trove.team_fee = trove.depositor_fee.add(get_team_fee(amount));
 
         msg!("the amount is {}", amount);
         msg!("amount to close is {}", trove.amount_to_close);
@@ -537,6 +570,8 @@ impl Processor {
         msg!("the token program key is {}", token_program.key);
         msg!("the amount to be closed is  {}", trove.amount_to_close);
 
+        //TODO uncomment this code later
+
         // if trove.amount_to_close.ne(&add_fees_on_pay(amount)){
         //     return Err(LiquityError::ExpectedAmountMismatch.into());
         // }
@@ -547,7 +582,7 @@ impl Processor {
             temp_pda_token.key, // token account key
             token.key, // token mint address key
             borrower.key, // authority key
-            &[&borrower.key], // signer pub key
+            &[borrower.key], // signer pub key
             add_fees_on_pay(amount)*1_000_000
         )?;
 
@@ -626,7 +661,7 @@ impl Processor {
         msg!("matching the passed pda");
         let pda = Pubkey::create_program_address(signers_seeds, program_id)?;
 
-        if pda.ne(&pda_mint.key) {
+        if pda.ne(pda_mint.key) {
             return Err(ProgramError::InvalidAccountData);
         }
 
@@ -739,11 +774,9 @@ impl Processor {
 
         msg!("the client pda is {:?}", &pda_mint.key);
         msg!("the program pda is {:?}", &pda);
-        if pda.ne(&pda_mint.key) {
+        if pda.ne(pda_mint.key) {
             return Err(ProgramError::InvalidAccountData);
         }
-
-        msg!("reached here");
 
         let transfer_to_initializer_ix = spl_token::instruction::mint_to(
             token_program.key,
@@ -753,8 +786,6 @@ impl Processor {
             &[pda_mint.key],
             get_trove_sent_amount(borrow_amount)* 1_000_000,
         )?;
-
-        
 
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
 
@@ -771,12 +802,11 @@ impl Processor {
 
         let _temp_borrowed_amount = trove.amount_to_close;
 
-        trove.lamports_amount = trove.lamports_amount.add(lamports);
-        trove.amount_to_close = trove.amount_to_close.add(get_trove_debt_amount(borrow_amount));
-        trove.borrow_amount = trove.borrow_amount.add(borrow_amount);
-        trove.lamports_amount = trove.lamports_amount;
-        trove.depositor_fee = trove.depositor_fee.add(get_depositors_fee(borrow_amount));
-        trove.team_fee = trove.team_fee.add(get_team_fee(borrow_amount));
+        trove.lamports_amount = trove.lamports_amount.checked_add(lamports).ok_or(ProgramError::InvalidArgument)?;
+        trove.amount_to_close = trove.amount_to_close.checked_add(borrow_amount).ok_or(ProgramError::InvalidArgument)?;
+        trove.borrow_amount = trove.borrow_amount.checked_add(borrow_amount).ok_or(ProgramError::InvalidArgument)?;
+        trove.depositor_fee = trove.depositor_fee.checked_add(get_depositors_fee(borrow_amount)).ok_or(ProgramError::InvalidArgument)?;
+        trove.team_fee = trove.team_fee.checked_add(get_team_fee(borrow_amount)).ok_or(ProgramError::InvalidArgument)?;
 
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
 
