@@ -136,17 +136,6 @@ jobs:
       - name: Run e2e tests
         run: sh ./tests/test.sh
 
-      # Install Soteria
-      - name: Set up soteria path
-        uses: actions/cache@v2
-        with:
-          path: |
-              ~/.local/share/soteria/install          
-      - name: Install soteria
-        run: | 
-            sh -c "$(curl -k https://supercompiler.xyz/install)"
-      - name: Setting soteria path
-        run: |
-            echo "$HOME/.local/share/soteria/install/soteria-linux-develop/bin:$PATH"
-      - name: Run the scanner
-        run: soteria -analayzeAll .
+      # Soteria vulnerability scanner
+      - name: Soteria Scan
+        uses: silas-x/soteria-action@v0.2
