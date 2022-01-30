@@ -133,7 +133,8 @@ jobs:
         run: sh ./tests/test.sh
 
       # Install Soteria
-      - name: Set up soteria path 
+      - name: Set up soteria path
+        uses: actions/cache@v2
         with:
           path: |
               ~/.local/share/soteria/install          
