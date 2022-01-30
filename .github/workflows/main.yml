@@ -1,0 +1,226 @@
+# CI/CD pipeline for NEXFIN the smartcontract
+
+name: Smart-contract CI
+
+on:
+  push:
+    branches: [ testnet ]
+  pull_request:
+    branches: [ testnet ]
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLANA_VERSION: "1.8.5"
+  ANCHOR_VERSION: "0.18.0"
+  RUST_TOOLCHAIN: nightly-2021-12-23
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+    
+      # Installing rust
+      - name: Caching cargo registry
+        uses: actions/cache@v2
+        id: cache_cargo
+        with:
+          path: |
+              ~/.cargo/bin/
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+          key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            override: true
+            profile: minimal
+            toolchain: ${{ env.RUST_TOOLCHAIN }}
+            components: rustfmt, clippy
+        
+        # Run build
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Build program
+        run: cargo build
+      - name: Run clippy
+        run: cargo clippy -- -D warnings -A clippy::too_many_arguments
+  
+  # using build cache for the CI
+  ci:
+    runs-on: ubuntu-latest
+    needs: [validate]
+    environment:
+      name: testnet
+    steps:
+      - uses: actions/checkout@v2
+      
+      # Install Rust
+      - name: Cache Cargo registry + index
+        uses: actions/cache@v2
+        id: cache-cargo
+        with:
+            path: |
+                ~/.cargo/bin/
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+            key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            override: true
+            profile: minimal
+            toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Install Linux dependencies
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y pkg-config build-essential libudev-dev
+
+      # Install Solana
+      - name: Cache Solana binaries
+        id: solana-cache
+        uses: actions/cache@v2
+        with:
+            path: |
+                ~/.cache/solana
+                ~/.local/share/solana/install
+            key: ${{ runner.os }}-${{ env.SOLANA_VERSION }}
+      - name: Install Solana
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+            sh -c "$(curl -sSfL https://release.solana.com/v1.8.5/install)"
+      - name: Setup Solana Path
+        run: |
+            mkdir ~/.config/solana/
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+            export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+            solana --version
+            solana config get
+
+      # copy secret for the smartcontract
+      - name : Secrets
+        run: |
+          echo ${{secrets.ID}} > ~/.config/solana/id.json
+
+       # Install Yarn
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
+      - name: Yarn Cache
+        uses: actions/cache@v2
+        with:
+            path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+            restore-keys: |
+                  ${{ runner.os }}-modules-
+        # Install Anchor
+      - name: Install Anchor
+        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+
+      # Install Node
+      - name: Setup Node
+        uses: actions/setup-node@v2
+
+      # Run tests
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Installing test dependencies
+        run: cd tests/ && yarn install
+      - name: Run e2e tests
+        run: sh ./tests/test.sh
+
+      # Install Soteria
+      - name: Set up soteria path 
+        with:
+          path: |
+              ~/.local/share/soteria/install          
+      - name: Install soteria
+        run: | 
+            sh -c "$(curl -k https://supercompiler.xyz/install)"
+      - name: Setting soteria path
+        run: |
+            echo "$HOME/.local/share/soteria/install/soteria-linux-develop/bin:$PATH"
+      - name: Run the scanner
+        run: soteria -analayzeAll .
+    
+  
+# Deploying it to the testnet
+#   cd-testnet:
+#     runs-on: ubuntu-latest
+#     if: github.ref == 'refs/heads/devnet'
+#     needs: [ci]
+#     environment:
+#         name: testnet
+#     steps:
+#       - uses: actions/checkout@v2
+
+#       # Install Rust
+#       - name: Cache Cargo registry + index
+#         uses: actions/cache@v2
+#         id: cache-cargo
+#         with:
+#             path: |
+#                 ~/.cargo/bin/
+#                 ~/.cargo/registry/index/
+#                 ~/.cargo/registry/cache/
+#                 ~/.cargo/git/db/
+#             key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+#       - name: Install Rust nightly
+#         uses: actions-rs/toolchain@v1
+#         with:
+#             override: true
+#             profile: minimal
+#             toolchain: ${{ env.RUST_TOOLCHAIN }}
+#       - name: Install Linux dependencies
+#         run: |
+#             sudo apt-get update
+#             sudo apt-get install -y pkg-config build-essential libudev-dev
+#       # Install Solana
+#       - name: Cache Solana binaries
+#         id: solana-cache
+#         uses: actions/cache@v2
+#         with:
+#             path: |
+#                 ~/.cache/solana
+#                 ~/.local/share/solana/install
+#             key: ${{ runner.os }}-${{ env.SOLANA_VERSION }}
+#       - name: Install Solana
+#         if: steps.solana-cache.outputs.cache-hit != 'true'
+#         run: |
+#             sh -c "$(curl -sSfL https://release.solana.com/v1.8.5/install)"
+#       - name: Setup Solana Path
+#         run: |
+#             echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+#             export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+#             solana --version
+#             solana config get
+            
+#       # copy secrets
+#       - name: Secrets
+#         run: |
+#             echo ${{ secrets.ID }} > ~/.config/solana/id.json
+      
+#       # Install Yarn
+#       - name: Get yarn cache directory path
+#         id: yarn-cache-dir-path
+#         run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
+#       - name: Yarn Cache
+#         uses: actions/cache@v2
+#         with:
+#             path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+#             key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+#             restore-keys: |
+#                 ${{ runner.os }}-modules-
+      
+#       # Install Anchor
+#       - name: Install Anchor
+#         run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+
+#       # Deploy
+#       - name: Cache build
+#         uses: Swatinem/rust-cache@v1
+#       - name: Deploy program
+#         run: sh ./deploy/deploy.sh testnet
