@@ -1,5 +1,3 @@
-use anchor_lang::solana_program::pubkey::Pubkey;
-
 pub const MIN_COLLATERAL: f64 = 0.4;
 /// 2 SOL as gase fee
 pub const GAS_FEE: u64 = 1;

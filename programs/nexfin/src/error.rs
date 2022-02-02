@@ -125,9 +125,9 @@ pub enum NexfinError {
     /// Withdraw amount too small
     #[error("Withdraw amount too small")]
     WithdrawTooSmall,
-    /// Withdraw amount too large
-    #[error("Withdraw amount too large")]
-    WithdrawTooLarge,
+    /// attempt to withdraw amount larger than initial deposit
+    #[error("Withdraw amount exceeds the deposit amount")]
+    AttemptToWithdrawTooMuch,
 
     // 25
     /// Borrow amount too small
