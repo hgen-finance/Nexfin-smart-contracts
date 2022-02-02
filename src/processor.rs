@@ -80,6 +80,14 @@ impl Processor {
         }
     }
 
+
+    fn update_admin(
+        accounts: &[account_info],
+        _program_id: &Pubkey,
+    )-> ProgramResult{
+        OK()
+    }
+
     fn process_add_deposit_reward(
         accounts: &[AccountInfo],
         coin: u64,
@@ -270,6 +278,7 @@ impl Processor {
     // TODO: Add admin as a signer
     // TODO: Check admin pubkey with the config account admin field
     // TODO: check if the config account is owned by the solana program
+    // TODO: Check if the user has enough amount of gens in wallet
     fn process_add_deposit(
         accounts: &[AccountInfo],
         amount: u64,
