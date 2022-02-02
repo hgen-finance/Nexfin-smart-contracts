@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 
-use crate::error::LiquityError::InvalidInstruction;
+use crate::error::NexfinError::InvalidInstruction;
 use solana_program::{
     msg,
 };
-use crate::error::LiquityError;
+use crate::error::NexfinError;
 use solana_program::program_error::ProgramError;
 
 pub enum LiquityInstruction {
@@ -229,14 +229,14 @@ impl LiquityInstruction {
     fn unpack_u64(input: &[u8]) -> Result<(u64, &[u8]), ProgramError> {
         if input.len() < 8 {
             msg!("u64 cannot be unpacked");
-            return Err(LiquityError::InstructionUnpackError.into());
+            return Err(NexfinError::InstructionUnpackError.into());
         }
         let (bytes, rest) = input.split_at(8);
         let value = bytes
             .get(..8)
             .and_then(|slice| slice.try_into().ok())
             .map(u64::from_le_bytes)
-            .ok_or(LiquityError::InstructionUnpackError)?;
+            .ok_or(NexfinError::InstructionUnpackError)?;
         Ok((value, rest))
     }
 }

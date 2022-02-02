@@ -8,7 +8,7 @@ use solana_program::{
     pubkey::Pubkey,
     sysvar::{rent::Rent, Sysvar},
 };
-use crate::{error::LiquityError, helpers, instruction::LiquityInstruction};
+use crate::{error::NexfinError, helpers, instruction::LiquityInstruction};
 use crate::state::{Trove, Deposit};
 use std::ops::{Sub, Add};
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
@@ -124,7 +124,7 @@ impl Processor {
 
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         trove.is_received = true;
@@ -195,7 +195,7 @@ impl Processor {
         let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
 
         if amount > deposit.token_amount {
-            return Err(LiquityError::InsufficientLiquidity.into());
+            return Err(NexfinError::InsufficientLiquidity.into());
         }
 
         deposit.token_amount = deposit.token_amount.sub(amount);
@@ -224,7 +224,7 @@ impl Processor {
         let rent = &Rent::from_account_info(next_account_info(accounts_info_iter)?)?;
 
         if !rent.is_exempt(deposit_account.lamports(), deposit_account.data_len()) {
-            return Err(LiquityError::NotRentExempt.into());
+            return Err(NexfinError::NotRentExempt.into());
         }
 
         let mut deposit = Deposit::unpack_unchecked(&deposit_account.data.borrow())?;
@@ -290,19 +290,19 @@ impl Processor {
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
 
         if !trove.is_initialized() {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
         if *borrower.key != trove.owner {
-            return Err(LiquityError::OnlyForTroveOwner.into());
+            return Err(NexfinError::OnlyForTroveOwner.into());
         }
 
         let temp_lamport_account = next_account_info(accounts_info_iter)?;
 
         if temp_lamport_account.lamports() != amount {
-            return Err(LiquityError::ExpectedAmountMismatch.into());
+            return Err(NexfinError::ExpectedAmountMismatch.into());
         }
 
         trove.lamports_amount = trove.lamports_amount.add(amount);
@@ -330,19 +330,19 @@ impl Processor {
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
 
         if !trove.is_initialized() {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
         if *borrower.key != trove.owner {
-            return Err(LiquityError::OnlyForTroveOwner.into());
+            return Err(NexfinError::OnlyForTroveOwner.into());
         }
 
         trove.lamports_amount = trove.lamports_amount.sub(amount);
 
         if !helpers::check_min_collateral_include_gas_fee(trove.borrow_amount, trove.lamports_amount) {
-            return Err(LiquityError::InvalidCollateral.into());
+            return Err(NexfinError::InvalidCollateral.into());
         }
 
         Trove::pack(trove, &mut trove_account.data.borrow_mut())?;
@@ -372,17 +372,17 @@ impl Processor {
 
         let trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         if !trove.is_received {
-            return Err(LiquityError::TroveIsNotReceived.into());
+            return Err(NexfinError::TroveIsNotReceived.into());
         }
 
         msg!("Send lamports to the sys acc");
         **sys_account.lamports.borrow_mut() = sys_account.lamports()
             .checked_add(trove_account.lamports())
-            .ok_or(LiquityError::AmountOverflow)?;
+            .ok_or(NexfinError::AmountOverflow)?;
 
         **trove_account.lamports.borrow_mut() = 0;
         *trove_account.data.borrow_mut() = &mut [];
@@ -410,7 +410,7 @@ impl Processor {
         // make the trove mutable to update the trove amount
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         let token_program = next_account_info(accounts_info_iter)?;
@@ -453,7 +453,7 @@ impl Processor {
         //     msg!("Send back the lamports!");
         //     **borrower.lamports.borrow_mut() = borrower.lamports()
         //         .checked_add(trove_account.lamports())
-        //         .ok_or(LiquityError::AmountOverflow)?;
+        //         .ok_or(NexfinError::AmountOverflow)?;
 
         //     **trove_account.lamports.borrow_mut() = 0;
 
@@ -484,7 +484,7 @@ impl Processor {
         // make the trove mutable to update the trove amount
         let trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         let token_program = next_account_info(accounts_info_iter)?;
@@ -523,7 +523,7 @@ impl Processor {
             msg!("Send back the lamports!");
             **borrower.lamports.borrow_mut() = borrower.lamports()
                 .checked_add(trove_account.lamports())
-                .ok_or(LiquityError::AmountOverflow)?;
+                .ok_or(NexfinError::AmountOverflow)?;
 
             **trove_account.lamports.borrow_mut() = 0;
 
@@ -543,7 +543,7 @@ impl Processor {
     {
         // check collateral
         if !helpers::check_min_collateral_include_gas_fee(borrow_amount, lamports) {
-            return Err(LiquityError::InvalidCollateral.into());
+            return Err(NexfinError::InvalidCollateral.into());
         }
 
         // Check accounts
@@ -559,7 +559,7 @@ impl Processor {
         let rent = &Rent::from_account_info(next_account_info(accounts_info_iter)?)?;
 
         if !rent.is_exempt(trove_account.lamports(), trove_account.data_len()) {
-            return Err(LiquityError::NotRentExempt.into());
+            return Err(NexfinError::NotRentExempt.into());
         }
 
         // Create Trove
@@ -603,10 +603,10 @@ impl Processor {
         let mut trove = Trove::unpack_unchecked(&trove_account.data.borrow())?;
 
         if !trove.is_initialized() {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         trove.lamports_amount = trove.lamports_amount.sub(amount);

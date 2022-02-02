@@ -11,7 +11,7 @@ use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 use crate::params::SYSTEM_ACCOUNT_ADDRESS;
 use std::ops::{Add, Sub};
 
-use crate::error::LiquityError;
+use crate::error::NexfinError;
 use anchor_lang::AccountsClose;
 use anchor_spl::token::{self, Burn, Mint, TokenAccount};
 use std::convert::TryInto;
@@ -51,7 +51,7 @@ pub mod nexfin {
     pub fn close_trove(ctx: Context<CloseTrove>) -> ProgramResult {
         let ref mut trove = ctx.accounts.trove;
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         let ref borrower = ctx.accounts.authority;
@@ -91,11 +91,11 @@ pub mod nexfin {
         }
 
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         if !trove.is_received {
-            return Err(LiquityError::TroveIsNotReceived.into());
+            return Err(NexfinError::TroveIsNotReceived.into());
         }
 
         Ok(())
@@ -106,13 +106,13 @@ pub mod nexfin {
         let ref mut trove = ctx.accounts.trove;
 
         if !trove.is_initialized {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
         if *borrower.key != trove.owner {
-            return Err(LiquityError::OnlyForTroveOwner.into());
+            return Err(NexfinError::OnlyForTroveOwner.into());
         }
 
         trove.lamports_amount = trove.lamports_amount.sub(amount);
@@ -121,7 +121,7 @@ pub mod nexfin {
             trove.borrow_amount,
             trove.lamports_amount,
         ) {
-            return Err(LiquityError::InvalidCollateral.into());
+            return Err(NexfinError::InvalidCollateral.into());
         }
         Ok(())
     }
@@ -131,10 +131,10 @@ pub mod nexfin {
         let ref mut trove = ctx.accounts.trove;
 
         if !trove.is_initialized {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         trove.lamports_amount = trove.lamports_amount.sub(amount);
@@ -146,16 +146,16 @@ pub mod nexfin {
         let ref mut trove = ctx.accounts.trove;
 
         if !trove.is_initialized {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         let ref mut temp_lamport_account = ctx.accounts.temp_lamport_account;
 
         if temp_lamport_account.lamports() != amount {
-            return Err(LiquityError::ExpectedAmountMismatch.into());
+            return Err(NexfinError::ExpectedAmountMismatch.into());
         }
 
         trove.lamports_amount = trove.lamports_amount.add(amount);
@@ -170,7 +170,7 @@ pub mod nexfin {
         let rent = &Rent::from_account_info(deposit_account)?;
 
         if !rent.is_exempt(deposit_account.lamports(), deposit_account.data_len()) {
-            return Err(LiquityError::NotRentExempt.into());
+            return Err(NexfinError::NotRentExempt.into());
         }
 
         let ref mut temp_pda_token = ctx.accounts.user_token;
@@ -212,7 +212,7 @@ pub mod nexfin {
         let ref mut deposit = ctx.accounts.deposit;
 
         if amount > deposit.token_amount {
-            return Err(LiquityError::InsufficientLiquidity.into());
+            return Err(NexfinError::InsufficientLiquidity.into());
         }
 
         deposit.token_amount = deposit.token_amount.sub(amount);
@@ -245,7 +245,7 @@ pub mod nexfin {
         }
 
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
         trove.is_received = true;
 
