@@ -18,7 +18,7 @@ use anchor_spl::token::{self, Burn, Mint, TokenAccount};
 
 declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 
-// TODO: Initialize the reserve(TVL)
+// TODO: Initialize the reserve(TVL) for the deposit
 // TODO: Check more for imporving code practices and security later
 
 #[program]
@@ -27,6 +27,8 @@ pub mod nexfin {
     // TODO: Consider put this trove to a PDA (Hung) 
     // TODO: Add the info on authroity and tokens in the different pda
     // TODO: Check for rent exemption
+    // TODO: Set the minimum borrow amount to 100
+    // TODO: Check if the user has enough SOL(lamports in their account)
     /// Borrow money
     /// Accounts expected:
     /// 0. `[signer]` The account of the person taking the trade
