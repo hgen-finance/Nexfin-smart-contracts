@@ -8,25 +8,40 @@ pub mod state;
 use pc::Price;
 
 use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
-use crate::params::SYSTEM_ACCOUNT_ADDRESS;
-use std::ops::{Add, Sub};
+// use crate::params::SYSTEM_ACCOUNT_ADDRESS;
+// use std::ops::{Add, Sub};
 
-use crate::error::LiquityError;
-use anchor_lang::AccountsClose;
+use crate::error::NexfinError;
+// use anchor_lang::AccountsClose;
 use anchor_spl::token::{self, Burn, Mint, TokenAccount};
-use std::convert::TryInto;
+// use std::convert::TryInto;
 
 declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
+
+// TODO: Initialize the reserve(TVL) for the deposit
+// TODO: Check more for imporving code practices and security later
 
 #[program]
 pub mod nexfin {
     use super::*;
-    // Consider put this trove to a PDA
+    // TODO: Consider put this trove to a PDA (Hung) 
+    // TODO: Add the info on authroity and tokens in the different pda
+    // TODO: Check for rent exemption
+    // TODO: Set the minimum borrow amount to 100
+    // TODO: Check if the user has enough SOL(lamports in their account)
+    /// Borrow money
+    /// Accounts expected:
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The account to store trove
+    /// 2. `[]` The rent sysvar
     pub fn borrow(ctx: Context<Borrow>, borrow_amount: u64, lamports: u64) -> ProgramResult {
         msg!("Instruction Borrow");
-        let ref mut trove = ctx.accounts.trove;
+        let trove = &mut ctx.accounts.trove;
 
-        let ref borrower = ctx.accounts.authority;
+        // TODO: Add authority later
+        // TODO: Check if the borrower is the signer
+        // TODO: Check if it matches with the borrow authority in the borrow info pda
+        let borrower = &ctx.accounts.authority;
 
         if trove.is_initialized {
             return Err(ProgramError::AccountAlreadyInitialized);
@@ -48,15 +63,65 @@ pub mod nexfin {
         Ok(())
     }
 
-    pub fn close_trove(ctx: Context<CloseTrove>) -> ProgramResult {
-        let ref mut trove = ctx.accounts.trove;
-        if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+    /// Add Borrow amount
+    ///
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The account to store trove
+    /// 2. `[]` The rent sysvar
+    // TODO: Check if the borrow authority is the signer
+    // TODO: Check if the admin is the signer
+    // TODO: Check if the admin matches in the config pda info
+    // TODO: Get the collateralCR for the borrow amount is not less than the total 110% CR (On hold)
+    // TODO: Check if the user has enough sol(lamports) in their account to borrow the token amount (On hold)
+    // TODO: Check if the config account is the pda of the current program id 
+    pub fn addBorrow(ctx: Context<AddBorrow>, borrow_amount: u64, lamports: u64) -> ProgramResult {
+        msg!("Instruction Borrow");
+        let trove = &mut ctx.accounts.trove;
+
+        // TODO: Check the borrow authority is in the borrow info pda
+        // TODO: Check if the borrow authority info pda is owned by the system program
+        // TODO: Check if the borrow authoirty is the signer
+        // TODO: Check the borrower passed matches the owner in the trove
+        let _borrower = &ctx.accounts.authority;
+
+        if trove.is_initialized {
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
-        let ref borrower = ctx.accounts.authority;
-        let ref mut user_token = ctx.accounts.user_token;
-        let ref mut mint_token = ctx.accounts.token_mint;
+        trove.lamports_amount = trove.lamports_amount.checked_add(lamports).ok_or(NexfinError::MathOverflow)?;
+        trove.amount_to_close = trove.amount_to_close.checked_add(borrow_amount).ok_or(NexfinError::MathOverflow)?;
+        trove.borrow_amount = trove.borrow_amount.checked_add(borrow_amount).ok_or(NexfinError::MathOverflow)?;
+        trove.depositor_fee = trove.depositor_fee.checked_add(get_depositors_fee(borrow_amount)).ok_or(NexfinError::MathOverflow)?;
+        trove.team_fee = trove.team_fee.checked_add(get_team_fee(borrow_amount)).ok_or(NexfinError::MathOverflow)?;
+
+        Ok(())
+    }
+
+    /// Close Trove
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    /// 2. `[]` Token program
+    /// 3. `[]` User token acc
+    /// 4. `[]` Mint Token key
+    // TODO: Check for burn authority matches with the authority in the close info pda
+    // TODO: Check if the close info pda owner matches with the 
+    // TODO: Check if the amount matches with the remaining amount in the bororw trove to close this troke
+    // TODO: Check if the user has sufficient amount of GENS token in his/her account
+    pub fn close_trove(ctx: Context<CloseTrove>) -> ProgramResult {
+        let trove = &mut ctx.accounts.trove;
+        if trove.is_liquidated {
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
+        }
+
+        let borrower = &ctx.accounts.authority;
+        let user_token = &mut ctx.accounts.user_token;
+        let mint_token = &mut ctx.accounts.token_mint;
 
         let amount_to_burn = trove.amount_to_close * 1_000_000_000;
 
@@ -81,104 +146,164 @@ pub mod nexfin {
         Ok(())
     }
 
+    /// Liquidate Trove
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    /// 2. `[writable]` The Trove owner
+    // TODO: Transfer the solana to the treasury account
     pub fn liquidate_trove(ctx: Context<LiquidateTrove>) -> ProgramResult {
-        let ref mut trove = ctx.accounts.trove;
-        let ref mut sys_account = ctx.accounts.trove_owner;
+        let trove = &mut ctx.accounts.trove;
+        // TODO: change the sys account to admin account
+        // TODO: Check if the admin account matches the admin in the config pda
+        // TODO: Check if config pda is owned by the program
+        let _sys_account = &mut ctx.accounts.trove_owner;
 
-        if *sys_account.key != SYSTEM_ACCOUNT_ADDRESS {
-            msg!("Invalid d");
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // TODO: Reterive info on the admin authority 
+        // if *sys_account.key != SYSTEM_ACCOUNT_ADDRESS {
+        //     msg!("Invalid d");
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
         if !trove.is_received {
-            return Err(LiquityError::TroveIsNotReceived.into());
+            return Err(NexfinError::TroveIsNotReceived.into());
         }
 
         Ok(())
     }
 
+    /// Withdraw Coin
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
     pub fn withdraw_coin(ctx: Context<WithdrawCoin>, amount: u64) -> ProgramResult {
-        let ref mut borrower = ctx.accounts.authority;
-        let ref mut trove = ctx.accounts.trove;
+        let borrower = &mut ctx.accounts.authority;
+        let trove = &mut ctx.accounts.trove;
 
         if !trove.is_initialized {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
         if *borrower.key != trove.owner {
-            return Err(LiquityError::OnlyForTroveOwner.into());
+            return Err(NexfinError::OnlyForTroveOwner.into());
         }
 
-        trove.lamports_amount = trove.lamports_amount.sub(amount);
+        trove.lamports_amount = trove.lamports_amount.checked_sub(amount).ok_or(NexfinError::MathOverflow)?;
 
         if !helpers::check_min_collateral_include_gas_fee(
             trove.borrow_amount,
             trove.lamports_amount,
         ) {
-            return Err(LiquityError::InvalidCollateral.into());
+            return Err(NexfinError::InvalidCollateral.into());
         }
         Ok(())
     }
 
+    /// Redeem Coin
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    // TODO: Check for the admin authority
+    // TODO: Check if the admin matches in the cofig pda account
+    // TODO: Check if the config pda owner is the program account
     pub fn redeem_coin(ctx: Context<RedeemCoin>, amount: u64) -> ProgramResult {
-        let ref mut borrower = ctx.accounts.authority;
-        let ref mut trove = ctx.accounts.trove;
+        // TODO: Check if the borrower is the signer
+        let _borrower = &mut ctx.accounts.authority;
+        let trove = &mut ctx.accounts.trove;
 
         if !trove.is_initialized {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
-        trove.lamports_amount = trove.lamports_amount.sub(amount);
+        trove.lamports_amount = trove.lamports_amount.checked_sub(amount).ok_or(NexfinError::MathOverflow)?;
         Ok(())
     }
 
+    /// Add Coin
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    /// 2. `[writable]` The Temp Account to get lamports
+    // TODO: Check if we are going to implement it later
     pub fn add_coin(ctx: Context<AddCoin>, amount: u64) -> ProgramResult {
-        let ref mut borrower = ctx.accounts.authority;
-        let ref mut trove = ctx.accounts.trove;
+        let _borrower = &mut ctx.accounts.authority;
+        let trove = &mut ctx.accounts.trove;
 
         if !trove.is_initialized {
-            return Err(LiquityError::TroveIsNotInitialized.into());
+            return Err(NexfinError::TroveIsNotInitialized.into());
         }
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
 
-        let ref mut temp_lamport_account = ctx.accounts.temp_lamport_account;
+        let temp_lamport_account = &mut ctx.accounts.temp_lamport_account;
 
         if temp_lamport_account.lamports() != amount {
-            return Err(LiquityError::ExpectedAmountMismatch.into());
+            return Err(NexfinError::ExpectedAmountMismatch.into());
         }
 
-        trove.lamports_amount = trove.lamports_amount.add(amount);
+        trove.lamports_amount = trove.lamports_amount.checked_add(amount).ok_or(NexfinError::MathOverflow)?;
         Ok(())
     }
 
+    /// Add deposit
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Deposit account
+    /// 2. `[]` The rent sysvar
+    /// 3. `[]` Token program
+    /// 4. `[]` User token acc
+    /// 4. `[]` User governance token acc
+    /// 5. `[]` Mint Token key
+    // TODO: Add a pda for burning tokens
+    // TODO: check for rent expemption on deposit account
+    // TODO: Check depositor is signer
+    // TODO: Check the authority key is signer (use pda)
+    // TODO: Check the owner of the authority key is the program id
+    // TODO: Check if the token program passed is valid
+    // TODO: Add a config account to check for the authority
+    // TODO: Check if the depositor has sufficent amount of token in the wallet (redundant)
+    // TODO: check if the deposit account is owned by the solana program
+    // TODO: Add admin as a signer
+    // TODO: Check admin pubkey with the config account admin field
+    // TODO: check if the config account is owned by the solana program
+    // TODO: Check if the user has enough amount of gens in wallet
     pub fn add_deposit(ctx: Context<AddDeposit>, amount: u64) -> ProgramResult {
-        let ref mut depositor = ctx.accounts.authority;
+        let depositor = &mut ctx.accounts.authority;
 
-        let ref mut deposit = ctx.accounts.deposit;
+        let deposit = &mut ctx.accounts.deposit;
         let deposit_account = &deposit.to_account_info();
         let rent = &Rent::from_account_info(deposit_account)?;
 
         if !rent.is_exempt(deposit_account.lamports(), deposit_account.data_len()) {
-            return Err(LiquityError::NotRentExempt.into());
+            return Err(NexfinError::NotRentExempt.into());
         }
 
-        let ref mut temp_pda_token = ctx.accounts.user_token;
-        let ref mut temp_governance_token = ctx.accounts.user_gov_token;
-        let ref mut token_mint = ctx.accounts.token_mint;
+        let temp_pda_token = &mut ctx.accounts.user_token;
+        let temp_governance_token = &mut ctx.accounts.user_gov_token;
+        let token_mint = &mut ctx.accounts.token_mint;
 
         if deposit.is_initialized {
-            deposit.token_amount = deposit.token_amount.add(amount);
+            deposit.token_amount = deposit.token_amount.checked_add(amount).ok_or(NexfinError::MathOverflow)?;
         } else {
             deposit.is_initialized = true;
             deposit.token_amount = amount;
@@ -206,28 +331,49 @@ pub mod nexfin {
         Ok(())
     }
 
-    // TODO: Who's  deposit owner, how to map a depositor to deposit
+    // TODO: Who's  deposit owner, how to map a depositor to deposit (Hung)
+    // TODO: check if the deposit owner matches the depositor
+    // TODO: Add a withdraw info account to check for the authroity and accounts
+    // TODO: Add a admin as a signer
+    ///  Withdraw deposit
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Deposit account
     pub fn withdraw_deposit(ctx: Context<WithdrawDeposit>, amount: u64) -> ProgramResult {
-        let ref mut depositor = ctx.accounts.authority;
-        let ref mut deposit = ctx.accounts.deposit;
+        // TODO: check if the depositor is the signer
+        let _depositor = &mut ctx.accounts.authority;
+        let deposit = &mut ctx.accounts.deposit;
 
         if amount > deposit.token_amount {
-            return Err(LiquityError::InsufficientLiquidity.into());
+            return Err(NexfinError::AttemptToWithdrawTooMuch.into());
         }
 
-        deposit.token_amount = deposit.token_amount.sub(amount);
+        deposit.token_amount = deposit.token_amount.checked_sub(amount).ok_or(NexfinError::MathOverflow)?;
         msg!("the new deposit token amount is {}", deposit.token_amount);
 
         Ok(())
     }
 
+    ///  Claim deposit reward
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Deposit account
+    // TODO: check if the deposit owner matches the depositor
+    // TODO: Add a withdraw info account to check for the authroity and accounts
+    // TODO: Add a admin as a signer
     pub fn claim_deposit_reward(ctx: Context<ClaimDepositReward>) -> ProgramResult {
-        let ref mut depositor = ctx.accounts.authority;
-        let ref mut deposit = ctx.accounts.deposit;
+        // TODO: to check if the depositor is the signer
+        let _depositor = &mut ctx.accounts.authority;
+        let deposit = &mut ctx.accounts.deposit;
 
-        if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // TODO: Retrive the authority for the rewards
+        // if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
         deposit.reward_governance_token_amount = 0;
         deposit.reward_token_amount = 0;
@@ -236,52 +382,88 @@ pub mod nexfin {
         Ok(())
     }
 
+    /// Trove received
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` Sys acc
+    /// 1. `[writable]` The Trove account
     pub fn receive_trove(ctx: Context<ReceiveTrove>) -> ProgramResult {
-        let ref mut sys_acc = ctx.accounts.sys_account;
-        let ref mut trove = ctx.accounts.trove;
+        // TODO: change sys account to the admin account
+        // TODO: Check if the admin account matches the config info in pda account
+        // TODO: Check if the config pda owner is the program
+        let _sys_acc =  &mut ctx.accounts.sys_account;
+        let trove =  &mut ctx.accounts.trove;
 
-        if *sys_acc.key != SYSTEM_ACCOUNT_ADDRESS {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // TODO: Retrive the authority info
+        // if *sys_acc.key != SYSTEM_ACCOUNT_ADDRESS {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
         if trove.is_liquidated {
-            return Err(LiquityError::TroveAlreadyLiquidated.into());
+            return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
         trove.is_received = true;
 
         Ok(())
     }
 
+    /// Set Deposit reward
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` Sys acc
+    /// 1. `[writable]` The Deposit account
+    // TODO: Check if the depositor matches the account in the deposit account
     pub fn add_deposit_reward(
         ctx: Context<AddDepositReward>,
         coin: u64,
         governance: u64,
         token: u64,
     ) -> ProgramResult {
-        let ref mut depositor = ctx.accounts.sys_account;
-        let ref mut deposit = ctx.accounts.deposit;
+        // TODO: check if the admin account is the signer
+        // TODO: check if the deposit account is owned by the program
+        // TODO: check if the admin account matches the config info
+        // TODO: Check if the owner of the config info pda is the program
+        let _admin =  &mut ctx.accounts.sys_account;
+        let deposit =  &mut ctx.accounts.deposit;
 
-        if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+        // TODO: Retrive the rewards authority info
+        // if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
-        deposit.reward_coin_amount = deposit.reward_coin_amount.add(coin);
-        deposit.reward_governance_token_amount =
-            deposit.reward_governance_token_amount.add(governance);
-        deposit.reward_token_amount = deposit.reward_token_amount.add(token);
+        deposit.reward_coin_amount = deposit.reward_coin_amount.checked_add(coin).ok_or(NexfinError::MathOverflow)?;
+        deposit.reward_governance_token_amount = deposit.reward_governance_token_amount.checked_add(governance).ok_or(NexfinError::MathOverflow)?;
+        deposit.reward_token_amount = deposit.reward_token_amount.checked_add(token).ok_or(NexfinError::MathOverflow)?;
 
         Ok(())
     }
 
     /// Burn amount  * 1_000_000_000 from user_token
+    /// Update Trove
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0. `[signer]` The account of the person taking the trade
+    /// 1. `[writable]` The Trove account
+    /// 2. `[]` Token program
+    /// 3. `[]` User token acc
+    /// 4. `[]` Mint Token key
+    // TODO: Add admin authority 
+    // TODO: check if the admin authority is in the config info pda 
     pub fn update_trove(ctx: Context<UpdateTrove>, amount: u64) -> ProgramResult {
-        let ref borrower = ctx.accounts.authority;
-        let ref mut user_token = ctx.accounts.user_token;
-        let ref mut mint_token = ctx.accounts.token_mint;
-        let ref mut trove = ctx.accounts.trove;
+        // TODO: Check if the borrow matches the borrower account in the 
+        let borrower = &ctx.accounts.authority;
+        let user_token =  &mut ctx.accounts.user_token;
+        let mint_token =  &mut ctx.accounts.token_mint;
+        let trove =  &mut ctx.accounts.trove;
 
         // update the amount to close price
-        trove.amount_to_close = (trove.amount_to_close).sub(amount);
+        trove.amount_to_close = (trove.amount_to_close).checked_sub(amount).ok_or(NexfinError::MathOverflow)?;
 
         msg!("the amount is {}", amount);
         msg!("amount to close is {}", trove.amount_to_close);
@@ -421,6 +603,7 @@ pub struct RedeemCoin<'info> {
     #[account(mut)]
     pub trove: ProgramAccount<'info, state::Trove>,
 }
+
 #[derive(Accounts)]
 pub struct UpdateTrove<'info> {
     #[account(signer, mut)]
@@ -465,7 +648,7 @@ pub struct LiquidateTrove<'info> {
     #[account(mut, close = authority)]
     pub trove: ProgramAccount<'info, state::Trove>,
 
-    // TODO: ask PS if this one is system_program
+    // TODO: ask PS if this one is system_program (Hung)
     #[account(mut)]
     pub trove_owner: AccountInfo<'info>,
 }
@@ -477,6 +660,23 @@ pub struct Borrow<'info> {
 
     #[account(zero)]
     pub trove: ProgramAccount<'info, state::Trove>,
+
+    #[account(address = spl_token::ID)]
+    pub token_program: AccountInfo<'info>,
+
+    pub rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct AddBorrow<'info> {
+    #[account(signer, mut)]
+    pub authority: AccountInfo<'info>,
+
+    #[account(zero)]
+    pub trove: ProgramAccount<'info, state::Trove>,
+
+    #[account(address = spl_token::ID)]
+    pub token_program: AccountInfo<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 }

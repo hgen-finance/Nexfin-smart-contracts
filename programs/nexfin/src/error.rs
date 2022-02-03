@@ -2,7 +2,7 @@ use anchor_lang::solana_program::program_error::ProgramError;
 use thiserror::Error;
 
 #[derive(Error, Debug, Copy, Clone)]
-pub enum LiquityError {
+pub enum NexfinError {
     /// Invalid instruction
     #[error("Invalid Instruction")]
     InvalidInstruction,
@@ -125,9 +125,9 @@ pub enum LiquityError {
     /// Withdraw amount too small
     #[error("Withdraw amount too small")]
     WithdrawTooSmall,
-    /// Withdraw amount too large
-    #[error("Withdraw amount too large")]
-    WithdrawTooLarge,
+    /// attempt to withdraw amount larger than initial deposit
+    #[error("Withdraw amount exceeds the deposit amount")]
+    AttemptToWithdrawTooMuch,
 
     // 25
     /// Borrow amount too small
@@ -198,8 +198,8 @@ pub enum LiquityError {
     NotEnoughLiquidityAfterFlashLoan,
 }
 
-impl From<LiquityError> for ProgramError {
-    fn from(e: LiquityError) -> Self {
+impl From<NexfinError> for ProgramError {
+    fn from(e: NexfinError) -> Self {
         ProgramError::Custom(e as u32)
     }
 }

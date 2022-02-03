@@ -2849,16 +2849,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-escrow"
-version = "0.1.0"
-dependencies = [
- "arrayref",
- "solana-program",
- "spl-token",
- "thiserror",
-]
-
-[[package]]
 name = "solana-faucet"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

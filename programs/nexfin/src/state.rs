@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
+// TODO: Add depositor account to the deposit
 #[account]
 #[derive(Default, Debug)]
 pub struct Deposit {
@@ -14,6 +15,7 @@ pub struct Deposit {
     pub owner: Pubkey,
 }
 
+//TODO: Add borrower account to the trove
 #[account]
 #[derive(Default, Debug)]
 pub struct Trove {

@@ -27,5 +27,6 @@ pub fn get_team_fee(amount: u64) -> u64 {
 
 fn get_lamport_price(lamports: u64) -> f64 {
     // TODO get price for lamports from oracle
-    lamports_to_sol(lamports).mul(1000000000 as f64)
+    // TODO: This is redundant, change it afterwards
+    lamports_to_sol(lamports).mul(1_000_000_000_f64)
 }
