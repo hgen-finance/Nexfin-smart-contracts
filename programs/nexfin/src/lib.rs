@@ -18,11 +18,15 @@ use anchor_spl::token::{self, Burn, Mint, TokenAccount};
 
 declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 
+// TODO: Initialize the reserve(TVL)
+// TODO: Check more for imporving code practices and security later
+
 #[program]
 pub mod nexfin {
     use super::*;
     // TODO: Consider put this trove to a PDA (Hung) 
     // TODO: Add the info on authroity and tokens in the different pda
+    // TODO: Check for rent exemption
     /// Borrow money
     /// Accounts expected:
     /// 0. `[signer]` The account of the person taking the trade
@@ -32,7 +36,8 @@ pub mod nexfin {
         msg!("Instruction Borrow");
         let trove = &mut ctx.accounts.trove;
 
-        // TODO: Add authority later 
+        // TODO: Add authority later
+        // TODO: Check if the borrower is the signer
         // TODO: Check if it matches with the borrow authority in the borrow info pda
         let borrower = &ctx.accounts.authority;
 
@@ -66,6 +71,9 @@ pub mod nexfin {
     // TODO: Check if the borrow authority is the signer
     // TODO: Check if the admin is the signer
     // TODO: Check if the admin matches in the config pda info
+    // TODO: Get the collateralCR for the borrow amount is not less than the total 110% CR (On hold)
+    // TODO: Check if the user has enough sol(lamports) in their account to borrow the token amount (On hold)
+    // TODO: Check if the config account is the pda of the current program id 
     pub fn addBorrow(ctx: Context<AddBorrow>, borrow_amount: u64, lamports: u64) -> ProgramResult {
         msg!("Instruction Borrow");
         let trove = &mut ctx.accounts.trove;
@@ -73,6 +81,7 @@ pub mod nexfin {
         // TODO: Check the borrow authority is in the borrow info pda
         // TODO: Check if the borrow authority info pda is owned by the system program
         // TODO: Check if the borrow authoirty is the signer
+        // TODO: Check the borrower passed matches the owner in the trove
         let _borrower = &ctx.accounts.authority;
 
         if trove.is_initialized {
