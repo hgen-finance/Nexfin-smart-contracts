@@ -26,6 +26,7 @@ declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 // TOOD: Check if all the account are rent excemption
 // TODO: Add an instruction for the admin to change config details
 // TODO: Add an init reserve for the deposits
+// TODO: For sysvar account use get or do valid check
 
 #[program]
 pub mod nexfin {
