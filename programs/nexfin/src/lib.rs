@@ -27,6 +27,7 @@ declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 // TODO: Add an instruction for the admin to change config details
 // TODO: Add an init reserve for the deposits
 // TODO: For sysvar account use get or do valid check
+// TODO: Check the token program is valid in anchor (Use a wrapper around the token account to make sure its  avalid token)
 
 #[program]
 pub mod nexfin {
