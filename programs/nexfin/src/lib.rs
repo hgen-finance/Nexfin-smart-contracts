@@ -21,6 +21,11 @@ declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 // TODO: Initialize the reserve(TVL) for the deposit
 // TODO: Check more for imporving code practices and security later
 // TODO: Check all the rent lamports are transferred back and depleted to zero to make sure the account is closed properly (Security issue)
+// TODO: check if the owner field in the deposit Acc/ Borrow Acc is their respective depositor and borrower.
+// TODO: Check if the accounts are assigned to our programID (Security issue) 
+// TOOD: Check if all the account are rent excemption
+// TODO: Add an instruction for the admin to change config details
+// TODO: Add an init reserve for the deposits
 
 #[program]
 pub mod nexfin {
