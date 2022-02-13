@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{program_error::ProgramError, pubkey::Pubkey};
+use std::mem::size_of;
 
-// TODO: Add depositor account to the deposit
 #[account]
 #[derive(Default, Debug)]
 pub struct Deposit {
@@ -15,7 +15,11 @@ pub struct Deposit {
     pub owner: Pubkey,
 }
 
-//TODO: Add borrower account to the trove
+impl Deposit {
+    /// space = 8 + 1 + 8 + 8 + 8 + 8 + 32 + 32 + 32
+    pub const LEN: usize = size_of::<Deposit>() + 8;
+}
+
 #[account]
 #[derive(Default, Debug)]
 pub struct Trove {
@@ -28,6 +32,11 @@ pub struct Trove {
     pub depositor_fee: u64,
     pub amount_to_close: u64,
     pub owner: Pubkey,
+}
+
+impl Trove {
+    /// space = 8 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 32
+    pub const LEN: usize = size_of::<Trove>() + 8;
 }
 
 #[account]
