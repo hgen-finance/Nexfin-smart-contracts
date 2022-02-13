@@ -10,6 +10,8 @@ use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 // use crate::params::SYSTEM_ACCOUNT_ADDRESS;
 // use std::ops::{Add, Sub};
 
+// use bytemuck::{ try_cast_slice_mut, Pod, Zeroable};
+
 use crate::error::NexfinError;
 // use anchor_lang::AccountsClose;
 use anchor_spl::token::{self, Burn, Mint, TokenAccount};
@@ -20,7 +22,8 @@ declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 // TODO: Initialize the reserve(TVL) for the deposit
 // TODO: Check more for imporving code practices and security later
 // TODO: Need to add versioning to accounts (Very important for future changes !!!)
-// TODO: Use bytemuch to align buffer (Important!!)
+// TODO: Use bytemuck to align buffer (Important!!)
+// TODO: Fix the stack offset (Important!!)
 
 // TODO: Create pda account for the trove
 // TODO: Create pda account for the deposit
@@ -28,21 +31,6 @@ declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 #[program]
 pub mod nexfin {
     use super::*;
-
-    // Create Trove
-    // TODO: Add helper function to calculate the colalteral ratio 
-    pub fn create_trove(_ctx: Context<CreateTrove>, _trove_account_bump:u8, _trove: Trove)-> ProgramResult {
-        msg!("Creating Trove account");
-        Ok(())
-    }
-
-    // Create Deposit
-    pub fn create_deposit(_ctx: Context<CreateDeposit>, _deposit_account_bump:u8, _deposit: Deposit)-> ProgramResult {
-        msg!("Creating Deposit account");
-        Ok(())
-    }
-
-
 
     // TODO: Consider put this trove to a PDA (Hung) 
     // TODO: Add the info on authroity and tokens in the different pda
@@ -56,9 +44,9 @@ pub mod nexfin {
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The account to store trove
     /// 2. `[]` The rent sysvar
-    pub fn borrow(ctx: Context<Borrow>, borrow_amount: u64, lamports: u64) -> ProgramResult {
+    pub fn borrow(ctx: Context<Borrow>, borrow_amount: u64, lamports: u64, _trove_account_bump: u8) -> ProgramResult {
         msg!("Instruction Borrow");
-        let trove = &mut ctx.accounts.trove;
+        let trove = &mut ctx.accounts.trove_account;
 
         // TODO: Add authority later
         // TODO: Check if the borrower is the signer
@@ -69,9 +57,9 @@ pub mod nexfin {
         let borrower = &ctx.accounts.authority;
 
         // check if the amount is not less than 100 token value
-        // if trove.borrow_amount < 100 {
-        //     return Err(NexfinError::InvalidAmount)
-        // }
+        if trove.borrow_amount < 100 {
+            return Err(NexfinError::InvalidAmount.into());
+        }
 
         if trove.is_initialized {
             return Err(ProgramError::AccountAlreadyInitialized);
@@ -316,10 +304,9 @@ pub mod nexfin {
     // TODO: Check admin pubkey with the config account admin field
     // TODO: check if the config account is owned by the solana program
     // TODO: Check if the user has enough amount of gens in wallet
-    pub fn add_deposit(ctx: Context<AddDeposit>, amount: u64) -> ProgramResult {
+    pub fn add_deposit(ctx: Context<AddDeposit>, amount: u64, _deposit_account_bump: u8) -> ProgramResult {
         let depositor = &mut ctx.accounts.authority;
-
-        let deposit = &mut ctx.accounts.deposit;
+        let deposit = &mut ctx.accounts.deposit_account;
         let deposit_account = &deposit.to_account_info();
         let rent = &Rent::from_account_info(deposit_account)?;
 
@@ -525,56 +512,6 @@ pub mod nexfin {
 }
 
 #[derive(Accounts)]
-#[instruction(trove_account_bump: u8, trove: Trove)]
-pub struct CreateTrove<'info> {
-    // TODO: add admin as authority later
-    // #[account(mut, has_one = authority)]
-    // pub admin_account: Account<'info, state::Admin>,
-
-    #[account(
-        init,
-        seeds = [
-            b"trove".as_ref(),
-            trove_account.key().as_ref(),
-        ],
-        bump = trove_account_bump,
-        payer = authority,
-        space = Trove::LEN
-    )]
-    pub trove_account: Account<'info, Trove>,
-
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    
-    pub system_program: Program<'info, System>
-}
-
-#[derive(Accounts)]
-#[instruction(deposit_account_bump: u8, deposit: Deposit)]
-pub struct CreateDeposit<'info> {
-    // TODO: add admin as authority later
-    // #[account(mut, has_one = authority)]
-    // pub admin_account: Account<'info, state::Admin>,
-
-    #[account(
-        init,
-        seeds = [
-            b"deposit".as_ref(),
-            deposit_account.key().as_ref(),
-        ],
-        bump = deposit_account_bump,
-        payer = authority,
-        space = Deposit::LEN + 8
-    )]
-    pub deposit_account: Account<'info, Deposit>,
-
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    
-    pub system_program: Program<'info, System>
-}
-
-#[derive(Accounts)]
 pub struct SetPrice<'info> {
     #[account(mut)]
     pub price: AccountInfo<'info>,
@@ -624,12 +561,22 @@ pub struct WithdrawDeposit<'info> {
 
 // TODO: Check if the bump matches deposit for trove acc
 #[derive(Accounts)]
+#[instruction(deposit_account_bump: u8)]
 pub struct AddDeposit<'info> {
-    #[account(signer, mut)]
-    pub authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
 
-    #[account(mut)] 
-    pub deposit: ProgramAccount<'info, Deposit>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            b"deposit".as_ref(),
+            authority.key().as_ref(),
+        ],
+        bump = deposit_account_bump,
+        payer = authority,
+        space = Trove::LEN + 8
+    )]
+    pub deposit_account: Account<'info, Deposit>,
 
     pub rent: Sysvar<'info, Rent>,
 
@@ -645,7 +592,6 @@ pub struct AddDeposit<'info> {
     #[account(mut)]
     pub token_mint: Account<'info, Mint>,
 
-    // TODO: need to change FE to add this
     pub system_program: Program<'info, System>,
 }
 
@@ -732,13 +678,24 @@ pub struct LiquidateTrove<'info> {
 
 // TODO: Check if the bump matches later for trove acc
 #[derive(Accounts)]
-#[instruction(trove_account_bump: u8, trove: Trove)]
+#[instruction(trove_account_bump: u8)]
 pub struct Borrow<'info> {
-    #[account(signer, mut)]
-    pub authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
 
-    #[account(mut)]    
-    pub trove: ProgramAccount<'info, Trove>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            b"deposit".as_ref(),
+            authority.key().as_ref(),
+        ],
+        bump = trove_account_bump,
+        payer = authority,
+        space = Trove::LEN + 8
+    )]
+    pub trove_account: Account<'info, Trove>,
+
+    pub system_program: Program<'info, System>,
 
     #[account(address = spl_token::ID)]
     pub token_program: AccountInfo<'info>,
