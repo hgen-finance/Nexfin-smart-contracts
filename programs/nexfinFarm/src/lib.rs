@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("2YpiK1GJ9H7hMbjGFZRrhYPXFPPR6bg1LWoxW1YGQJiD");
 
 #[program]
 pub mod nexfin_farm {

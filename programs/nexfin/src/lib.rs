@@ -18,7 +18,7 @@ use crate::error::NexfinError;
 use anchor_spl::token::{self, Burn, Mint, TokenAccount};
 // use std::convert::TryInto;
 
-declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
+declare_id!("HPwvr8B9KtM3CZwQg7V8pevfgsZfZBLiR3gL1HcEsGiD");
 
 // TODO: Initialize the reserve(TVL) for the deposit
 // TODO: Check more for imporving code practices and security later
@@ -28,7 +28,7 @@ declare_id!("5kLDDxNQzz82UtPA5hJmyKR3nUKBtRTfu4nXaGZmLanS");
 
 // TODO: Create pda account for the trove
 // TODO: Create pda account for the deposit
-
+// TODO: Separate the mint authority from config to different config(Important!!)
 #[program]
 pub mod nexfin {
     use super::*;
@@ -45,7 +45,7 @@ pub mod nexfin {
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The account to store trove
     /// 2. `[]` The rent sysvar
-    pub fn borrow(ctx: Context<Borrow>, borrow_amount: u64, lamports: u64, _trove_account_bump: u8) -> ProgramResult {
+    pub fn borrow(ctx: Context<Borrow>, borrow_amount: u64, lamports: u64, trove_account_bump: u8) -> ProgramResult {
         msg!("Instruction Borrow");
         let trove = &mut ctx.accounts.trove_account;
 
@@ -66,6 +66,7 @@ pub mod nexfin {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
+        trove.bump = trove_account_bump;
         trove.is_initialized = true; // initialize for newly created account
         trove.is_liquidated = false;
         trove.is_received = false;
@@ -74,9 +75,9 @@ pub mod nexfin {
         trove.depositor_fee = get_depositors_fee(borrow_amount);
         trove.team_fee = get_team_fee(borrow_amount);
         trove.amount_to_close = get_trove_debt_amount(borrow_amount);
-        trove.owner = *borrower.key;
+        trove.authority = *borrower.key;
 
-        msg!("trove owner is {}", trove.owner);
+        msg!("trove owner is {}", trove.authority);
         msg!("the borrow amount is {}", trove.borrow_amount);
 
         Ok(())
@@ -101,10 +102,8 @@ pub mod nexfin {
 
         // TODO: Check the borrow authority is in the borrow info pda
         // TODO: Check if the borrow authority info pda is owned by the system program
-        // TODO: Check if the borrow authoirty is the signer
+        // TODO: Check if the borrow authority is the signer
         // TODO: Check the borrower passed matches the owner in the trove
-        let _borrower = &ctx.accounts.authority;
-
         if trove.is_initialized {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
@@ -144,12 +143,6 @@ pub mod nexfin {
 
         let amount_to_burn = trove.amount_to_close * 1_000_000_000;
 
-        msg!("the borrow key is {}", borrower.key);
-        msg!("the token key is {}", mint_token.key());
-        msg!("the token temp key is {}", user_token.key());
-        msg!("the amount to be closed is  {}", trove.amount_to_close);
-        msg!("the amount to be bured is  {}", amount_to_burn);
-
         let burn_ctx = CpiContext::new(
             ctx.accounts.token_program.clone(),
             Burn {
@@ -178,13 +171,7 @@ pub mod nexfin {
         // TODO: change the sys account to admin account
         // TODO: Check if the admin account matches the admin in the config pda
         // TODO: Check if config pda is owned by the program
-        let _sys_account = &mut ctx.accounts.trove_owner;
-
-        // TODO: Reterive info on the admin authority 
-        // if *sys_account.key != SYSTEM_ACCOUNT_ADDRESS {
-        //     msg!("Invalid d");
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
+        //TODO: check for the collateral ratio before liquidating the trove
 
         if trove.is_liquidated {
             return Err(NexfinError::TroveAlreadyLiquidated.into());
@@ -213,7 +200,7 @@ pub mod nexfin {
         if trove.is_liquidated {
             return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
-        if *borrower.key != trove.owner {
+        if *borrower.key != trove.authority {
             return Err(NexfinError::OnlyForTroveOwner.into());
         }
 
@@ -305,7 +292,7 @@ pub mod nexfin {
     // TODO: Check admin pubkey with the config account admin field
     // TODO: check if the config account is owned by the solana program
     // TODO: Check if the user has enough amount of gens in wallet
-    pub fn add_deposit(ctx: Context<AddDeposit>, amount: u64, _deposit_account_bump: u8) -> ProgramResult {
+    pub fn add_deposit(ctx: Context<AddDeposit>, amount: u64, deposit_account_bump: u8) -> ProgramResult {
         let depositor = &mut ctx.accounts.authority;
         let deposit = &mut ctx.accounts.deposit_account;
         let deposit_account = &deposit.to_account_info();
@@ -322,6 +309,7 @@ pub mod nexfin {
         if deposit.is_initialized {
             deposit.token_amount = deposit.token_amount.checked_add(amount).ok_or(NexfinError::MathOverflow)?;
         } else {
+            deposit.bump = deposit_account_bump;
             deposit.is_initialized = true;
             deposit.token_amount = amount;
             deposit.reward_token_amount = 0;
@@ -329,7 +317,7 @@ pub mod nexfin {
             deposit.reward_coin_amount = 0;
             deposit.bank = temp_pda_token.key();
             deposit.governance_bank = temp_governance_token.key();
-            deposit.owner = *depositor.key;
+            deposit.authority = *depositor.key;
         }
 
         let amount_to_burn = amount * 1_000_000_000;
@@ -382,11 +370,6 @@ pub mod nexfin {
     pub fn claim_deposit_reward(ctx: Context<ClaimDepositReward>) -> ProgramResult {
         let deposit = &mut ctx.accounts.deposit;
 
-        // TODO: Retrive the authority for the rewards
-        // if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
-
         deposit.reward_governance_token_amount = 0;
         deposit.reward_token_amount = 0;
         deposit.reward_coin_amount = 0;
@@ -401,18 +384,11 @@ pub mod nexfin {
     ///
     /// 0. `[signer]` Sys acc
     /// 1. `[writable]` The Trove account
-    pub fn receive_trove(ctx: Context<ReceiveTrove>) -> ProgramResult {
+    pub fn receive_trove(ctx: Context<ReceiveTrove>, _trove_account: Pubkey) -> ProgramResult {
         // TODO: change sys account to the admin account
         // TODO: Check if the admin account matches the config info in pda account
         // TODO: Check if the config pda owner is the program
-        let _sys_acc =  &mut ctx.accounts.sys_account;
         let trove =  &mut ctx.accounts.trove;
-
-        // TODO: Retrive the authority info
-        // if *sys_acc.key != SYSTEM_ACCOUNT_ADDRESS {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
-
         if trove.is_liquidated {
             return Err(NexfinError::TroveAlreadyLiquidated.into());
         }
@@ -434,18 +410,14 @@ pub mod nexfin {
         coin: u64,
         governance: u64,
         token: u64,
+        _deposit_account: Pubkey,
     ) -> ProgramResult {
         // TODO: check if the admin account is the signer
         // TODO: check if the deposit account is owned by the program
         // TODO: check if the admin account matches the config info
         // TODO: Check if the owner of the config info pda is the program
-        let _admin =  &mut ctx.accounts.sys_account;
-        let deposit =  &mut ctx.accounts.deposit;
-
         // TODO: Retrive the rewards authority info
-        // if *depositor.key != SYSTEM_ACCOUNT_ADDRESS {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
+        let deposit =  &mut ctx.accounts.deposit;
 
         deposit.reward_coin_amount = deposit.reward_coin_amount.checked_add(coin).ok_or(NexfinError::MathOverflow)?;
         deposit.reward_governance_token_amount = deposit.reward_governance_token_amount.checked_add(governance).ok_or(NexfinError::MathOverflow)?;
@@ -510,6 +482,22 @@ pub mod nexfin {
         price_oracle.agg.price = price as i64;
         Ok(())
     }
+
+    // TODO: remove this funciton after the config is create
+    pub fn initialize_config(ctx: Context<InitializeConfig>, _config_account_bump: u8, config: Config) -> ProgramResult {
+        ctx.accounts.config_account.bump = config.bump;
+        ctx.accounts.config_account.is_initialized = config.is_initialized;
+        ctx.accounts.config_account.mint_account_authority = config.mint_account_authority;
+        ctx.accounts.config_account.admin_account_authority = config.admin_account_authority;        
+        Ok(())
+    }
+
+    pub fn change_config(ctx: Context<ChangeConfig>, config: Config) -> ProgramResult {
+        ctx.accounts.config_account.is_initialized = config.is_initialized;
+        ctx.accounts.config_account.mint_account_authority = config.mint_account_authority;
+        ctx.accounts.config_account.admin_account_authority = config.admin_account_authority;        
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -525,38 +513,59 @@ pub struct LoadPrice<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(deposit_account: Pubkey)]
 pub struct AddDepositReward<'info> {
-    #[account(signer, mut)]
-    pub sys_account: AccountInfo<'info>,
-
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds = [b"deposit", deposit_account.key().to_bytes().as_ref()], bump = deposit.bump)]
     pub deposit: ProgramAccount<'info, Deposit>,
 }
 #[derive(Accounts)]
+#[instruction(trove_account: Pubkey)]
 pub struct ReceiveTrove<'info> {
-    #[account(signer, mut)]
-    pub sys_account: AccountInfo<'info>,
-
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds = [b"trove".as_ref(), trove_account.key().to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 }
 
 #[derive(Accounts)]
 pub struct ClaimDepositReward<'info> {
+    // only its respective depositor can claim its reward account 
     #[account(signer, mut)]
     pub authority: AccountInfo<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, has_one = authority, seeds = [b"deposit".as_ref(), authority.key().to_bytes().as_ref()], bump = deposit.bump)]
     pub deposit: ProgramAccount<'info, Deposit>,
 }
 
 // TODO: Check if the bump matches later for deposit acc
 #[derive(Accounts)]
 pub struct WithdrawDeposit<'info> {
-    #[account(signer, mut)]
-    pub authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, has_one = authority, seeds = [b"deposit".as_ref(),authority.key().to_bytes().as_ref()], bump = deposit.bump)]
     pub deposit: ProgramAccount<'info, Deposit>,
 }
 
@@ -566,6 +575,12 @@ pub struct WithdrawDeposit<'info> {
 pub struct AddDeposit<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
+
+    #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
 
     #[account(
         init_if_needed,
@@ -602,6 +617,12 @@ pub struct AddCoin<'info> {
     pub authority: AccountInfo<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds = [b"trove".as_ref(),authority.key().to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 
     #[account(signer, mut)]
@@ -614,6 +635,12 @@ pub struct WithdrawCoin<'info> {
     pub authority: AccountInfo<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds = [b"trove".as_ref(),authority.key.to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 }
 
@@ -623,6 +650,12 @@ pub struct RedeemCoin<'info> {
     pub authority: AccountInfo<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds = [b"trove".as_ref(), authority.key.to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 }
 
@@ -633,6 +666,12 @@ pub struct UpdateTrove<'info> {
     pub authority: AccountInfo<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, has_one = authority, seeds = [b"trove".as_ref(),authority.key().to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 
     #[account(address = spl_token::ID)]
@@ -651,7 +690,13 @@ pub struct CloseTrove<'info> {
     #[account(signer, mut)]
     pub authority: AccountInfo<'info>,
 
-    #[account(mut, close = authority)]
+    #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, close = authority, seeds = [b"trove".as_ref(),authority.key().to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 
     #[account(address = spl_token::ID)]
@@ -664,12 +709,16 @@ pub struct CloseTrove<'info> {
     pub token_mint: Account<'info, Mint>,
 }
 
+
 #[derive(Accounts)]
 pub struct LiquidateTrove<'info> {
-    #[account(signer, mut)]
-    pub authority: AccountInfo<'info>,
+    #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
 
-    #[account(mut, close = authority)]
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, close = admin_account_authority, seeds = [b"trove".as_ref(), trove.authority.key().to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 
     // TODO: ask PS if this one is system_program (Hung)
@@ -684,6 +733,12 @@ pub struct LiquidateTrove<'info> {
 pub struct Borrow<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
+
+    #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
 
     #[account(
         init_if_needed,
@@ -729,6 +784,12 @@ pub struct AddBorrow<'info> {
     pub authority: AccountInfo<'info>,
 
     #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds=[b"trove".as_ref(), authority.key.to_bytes().as_ref()], bump = trove.bump)]
     pub trove: ProgramAccount<'info, Trove>,
 
     #[account(address = spl_token::ID)]
@@ -737,9 +798,45 @@ pub struct AddBorrow<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
+#[derive(Accounts)]
+#[instruction(config_account_bump: u8)]
+pub struct InitializeConfig<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(init, seeds = [b"config".as_ref(), authority.key().to_bytes().as_ref()], bump = config_account_bump, payer = authority, space = Config::LEN + 8)]
+    pub config_account: Account<'info, Config>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ChangeConfig<'info>{
+    #[account(mut)]
+    pub admin_account_authority: Signer<'info>,
+
+    // Info: can validate that pda account is created by the different using seeds:program
+    #[account(mut, seeds = [b"config".as_ref(), config_account.admin_account_authority.key().to_bytes().as_ref()], bump = config_account.bump, has_one = admin_account_authority)]
+    pub config_account: Account<'info, Config>
+}
+
+#[account]
+pub struct Config {
+    pub bump: u8,
+    pub is_initialized: bool,
+    pub mint_account_authority: Pubkey,
+    pub admin_account_authority: Pubkey,
+}
+
+impl Config {
+    /// space = 8 + 1 + 32 + 32 
+    pub const LEN: usize = size_of::<Config>() + 8;
+}
+
 #[account]
 #[derive(Default, Debug)]
 pub struct Deposit {
+    pub bump: u8,
     pub is_initialized: bool,
     pub token_amount: u64,
     pub reward_token_amount: u64,
@@ -747,7 +844,7 @@ pub struct Deposit {
     pub reward_coin_amount: u64,
     pub bank: Pubkey,
     pub governance_bank: Pubkey,
-    pub owner: Pubkey,
+    pub authority: Pubkey,
 }
 
 impl Deposit {
@@ -758,6 +855,7 @@ impl Deposit {
 #[account]
 #[derive(Default, Debug)]
 pub struct Trove {
+    pub bump: u8,
     pub is_initialized: bool,
     pub is_received: bool,
     pub is_liquidated: bool,
@@ -766,7 +864,7 @@ pub struct Trove {
     pub team_fee: u64,
     pub depositor_fee: u64,
     pub amount_to_close: u64,
-    pub owner: Pubkey,
+    pub authority: Pubkey,
 }
 
 impl Trove {
