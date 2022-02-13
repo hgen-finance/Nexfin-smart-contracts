@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+// use std::{cell::{Ref, RefMut},mem::size_of};
 use std::mem::size_of;
 pub mod error;
 pub mod helpers;
@@ -10,7 +11,7 @@ use crate::helpers::{get_depositors_fee, get_team_fee, get_trove_debt_amount};
 // use crate::params::SYSTEM_ACCOUNT_ADDRESS;
 // use std::ops::{Add, Sub};
 
-// use bytemuck::{ try_cast_slice_mut, Pod, Zeroable};
+// use bytemuck::{from_bytes, from_bytes_mut, Pod, Zeroable};
 
 use crate::error::NexfinError;
 // use anchor_lang::AccountsClose;
@@ -679,6 +680,7 @@ pub struct LiquidateTrove<'info> {
 // TODO: Check if the bump matches later for trove acc
 #[derive(Accounts)]
 #[instruction(trove_account_bump: u8)]
+#[repr(C)]
 pub struct Borrow<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -702,6 +704,23 @@ pub struct Borrow<'info> {
 
     pub rent: Sysvar<'info, Rent>,
 }
+
+// impl ZeroCopy for Borrow {}
+
+// pub trait ZeroCopy: Pod {
+//     fn load<'a>(account: &'a AccountInfo) -> Result<Ref<'a, Self>, ProgramError> {
+//         let size = size_of::<Self>();
+//         Ok(Ref::map(account.try_borrow_data()?, |data|{
+//             from_bytes(&data[..size])
+//         }))
+//     }
+//     fn load_mut<'a>(account: &'a AccountInfo) -> Result<RefMut<'a, Self>, ProgramError> {
+//         let size = size_of::<Self>();
+//         Ok(Ref::map(account.try_borrow_mut_data()?, |data|{
+//             from_bytes_mut(&data[..size])
+//         }))
+//     }
+// }
 
 // TODO: Check if the bump matches later for trove acc
 #[derive(Accounts)]
