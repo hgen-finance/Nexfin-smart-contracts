@@ -103,12 +103,12 @@ pub enum NexfinError {
     #[error("The operation cannot be performed on the given curve")]
     UnsupportedCurveOperation,
 }
-impl From<SwapError> for ProgramError {
-    fn from(e: SwapError) -> Self {
+impl From<NexfinError> for ProgramError {
+    fn from(e: NexfinError) -> Self {
         ProgramError::Custom(e as u32)
     }
 }
-impl<T> DecodeError<T> for SwapError {
+impl<T> DecodeError<T> for NexfinError {
     fn type_of() -> &'static str {
         "Swap Error"
     }
