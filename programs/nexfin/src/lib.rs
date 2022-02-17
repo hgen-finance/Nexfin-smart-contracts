@@ -820,6 +820,7 @@ pub struct ChangeConfig<'info>{
     pub config_account: Account<'info, Config>
 }
 
+// TODO: Need to serialize and de-serialize it
 #[account]
 pub struct Config {
     pub bump: u8,
@@ -833,6 +834,7 @@ impl Config {
     pub const LEN: usize = size_of::<Config>() + 8;
 }
 
+// TODO: Need to serialize and de-serialize it
 #[account]
 #[derive(Default, Debug)]
 pub struct Deposit {
@@ -852,6 +854,8 @@ impl Deposit {
     pub const LEN: usize = size_of::<Deposit>() + 8;
 }
 
+
+// TODO: Need to serialize and de-serialize it
 #[account]
 #[derive(Default, Debug)]
 pub struct Trove {

@@ -3,6 +3,7 @@ use anchor_lang::prelude::AccountInfo;
 use bytemuck::{cast_slice_mut, from_bytes_mut, try_cast_slice_mut, Pod, Zeroable};
 use std::cell::RefMut;
 
+// TODO: Need to serialize and de-serialize the struct fields
 #[derive(Default, Copy, Clone)]
 #[repr(C)]
 pub struct AccKey {
