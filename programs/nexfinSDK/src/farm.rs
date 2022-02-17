@@ -45,8 +45,6 @@ pub enum FarmRoute {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum FarmRouteType {
     Raydium,
-    Saber,
-    Orca,
 }
 
 #[repr(u8)]
@@ -112,22 +110,16 @@ impl Versioned for Farm {
 impl Farm {
     pub const MAX_LEN: usize = 655;
     pub const RAYDIUM_FARM_LEN: usize = 400;
-    pub const SABER_FARM_LEN: usize = 655;
-    pub const ORCA_FARM_LEN: usize = 399;
 
     pub fn get_size(&self) -> usize {
         match self.route {
             FarmRoute::Raydium { .. } => Farm::RAYDIUM_FARM_LEN,
-            FarmRoute::Saber { .. } => Farm::SABER_FARM_LEN,
-            FarmRoute::Orca { .. } => Farm::ORCA_FARM_LEN,
         }
     }
 
     pub fn pack(&self, output: &mut [u8]) -> Result<usize, ProgramError> {
         match self.route {
             FarmRoute::Raydium { .. } => self.pack_raydium(output),
-            FarmRoute::Saber { .. } => self.pack_saber(output),
-            FarmRoute::Orca { .. } => self.pack_orca(output),
         }
     }
 
@@ -146,8 +138,6 @@ impl Farm {
             .or(Err(ProgramError::InvalidAccountData))?;
         match farm_route_type {
             FarmRouteType::Raydium => Farm::unpack_raydium(input),
-            FarmRouteType::Saber => Farm::unpack_saber(input),
-            FarmRouteType::Orca => Farm::unpack_orca(input),
         }
     }
 
