@@ -1,5 +1,4 @@
-use anchor_lang::prelude::*;
-use solana_program::{declare_id, pubkey::Pubkey};
+pub use solana_program;
 
 pub mod constraints;
 pub mod curve;
@@ -8,6 +7,8 @@ pub mod instruction;
 pub mod processor;
 pub mod state;
 
-// TODO: change this to the account address that the swap program will be deployed
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+#[cfg(not(feature = "no-entrypoint"))]
+mod entrypoint;
+
+solana_program::declare_id!("Exf39M5HifaYUkiYHkATR2ehMSwWMVsSshMgpXdbJHqn");
 
