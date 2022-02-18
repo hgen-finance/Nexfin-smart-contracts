@@ -14,7 +14,7 @@ fn process_instruction(
 ) -> ProgramResult {
     if let Err(error) = Processor::process(program_id, accounts, instruction_data) {
         // catch the error so we can print it
-        error.print::<SwapError>();
+        error.print::<NexfinError>();
         return Err(error);
     }
     Ok(())
