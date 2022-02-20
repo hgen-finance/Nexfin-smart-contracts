@@ -41,15 +41,16 @@ pub mod stable_coin {
         let pyth_price_info = &ctx.accounts.pyth_account;
         let pyth_price_data = &pyth_price_info.try_borrow_data()?;
         let pyth_price = pyth_client::cast::<pyth_client::Price>(pyth_price_data);
+        let colleteral_multiplier = 100 as u64 / 147 as u64;
 
-        let sc_usd_price = pyth_price.agg.price as u64; // Get the SOL/USD price from pyth.network
-
+        // Get the SOL/USD price from pyth.network
+        let sc_usd_price = pyth_price.agg.price as u64; 
         if sc_usd_price < 0 {
             msg!("The SOL/USD price is wrong.");
             return Err(StableCoinError::UsdPriceWrong.into());
         }
 
-        let init_stable_supply = ( sc_usd_price * sol_amount) / (10u32.pow(8) as u64);
+        let init_stable_supply = ( sc_usd_price * sol_amount * colleteral_multiplier) / (10u32.pow(8) as u64);
 
         msg!("Total Supply:  {:?}", init_stable_supply);        
 
@@ -86,9 +87,10 @@ pub mod stable_coin {
         let current_price = pyth_price.agg.price as u64; // Get the SOL/USD price from pyth.network
 
         let last_sol_price = ctx.accounts.sol_price_account.last_sol_price;
+        let colleteral_multiplier = 100 as u64 / 147 as u64;
 
         if current_price < last_sol_price {
-            let burn_amount = last_sol_price - current_price;
+            let burn_amount = (last_sol_price - current_price) * colleteral_multiplier as u64 ;
             let cpi_ctx = CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
                 token::Burn {
@@ -100,7 +102,7 @@ pub mod stable_coin {
             token::burn(cpi_ctx, burn_amount)?;
 
         } else if current_price > last_sol_price {
-            let mint_amount = current_price - last_sol_price;
+            let mint_amount = (current_price - last_sol_price) * colleteral_multiplier as u64;
 
             let seeds = &[&b"mint-authority"[..], &[token_authority_bump]];
 
