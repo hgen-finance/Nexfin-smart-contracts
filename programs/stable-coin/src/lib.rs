@@ -7,7 +7,7 @@ use std::mem::size_of;
 
 pub mod error;
 
-declare_id!("DHkf7V1VjWCdJDMGogvvGC2S2H7mSS4Cv6YBM1mw8mK1");
+declare_id!("FMndmu5WMd562PAFgfJ9XQ5wykEcWraixubnZZ1GWYtZ");
 
 #[program]
 pub mod stable_coin {
