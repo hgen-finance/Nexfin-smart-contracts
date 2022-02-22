@@ -6,4 +6,10 @@ pub enum StableCoinError {
     NoEnough,
     #[msg("The SOL/USD price is wrong.")]
     UsdPriceWrong,
+    #[msg("The account is not initialized.")]
+    NoInit,
+    #[msg("You don't deposit any SOL.")]
+    NoDeposit,
+    #[msg("Escrow account doesn't have enough SOL.")]
+    NoEnoughSolEscrow,
 }
