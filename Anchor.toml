@@ -1,11 +1,11 @@
-[programs.localnet]
-nexfin = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+[programs.devnet]
+nexfin = "HPwvr8B9KtM3CZwQg7V8pevfgsZfZBLiR3gL1HcEsGiD"
 
 [registry]
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "/home/sexpistol/new-keypair.json"
 
 [scripts]

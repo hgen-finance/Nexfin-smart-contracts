@@ -23,6 +23,8 @@ thiserror = "1.0.24"
 # chainlink = { git = "https://github.com/smartcontractkit/chainlink-solana", package = "chainlink-solana"}
 arrayref = "0.3.6"
 bytemuck = { version = "1.4.0" }
+pyth-client = "0.2.2"
+
 
 
 
