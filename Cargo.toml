@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "programs/nexfin",
+    "programs/*",
 ]
 
 # Add cli in the members group 
