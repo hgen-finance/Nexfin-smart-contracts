@@ -166,7 +166,9 @@ pub mod nexfin {
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
 
-            token::mint_to(cpi_ctx, (borrow_amount)*1_000_000_000)?;
+            // token::mint_to(cpi_ctx, (borrow_amount)*1_000_000_000)?;
+            token::mint_to(cpi_ctx,borrow_amount*1_00)?;
+
 
             trove.bump = trove_account_bump;
             trove.sol_bump = sol_account_bump;
@@ -259,7 +261,9 @@ pub mod nexfin {
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
 
-            token::mint_to(cpi_ctx,borrow_amount*1_000_000_000)?;
+            // token::mint_to(cpi_ctx,borrow_amount*1_000_000_000)?;
+            token::mint_to(cpi_ctx,borrow_amount*1_00)?;
+
 
             trove.lamports_amount = trove.lamports_amount.checked_add(lamports).ok_or(NexfinError::MathOverflow)?;
             trove.amount_to_close = trove.amount_to_close.checked_add(borrow_amount).ok_or(NexfinError::MathOverflow)?;
@@ -298,7 +302,9 @@ pub mod nexfin {
         let user_token = &mut ctx.accounts.user_token;
         let mint_token = &mut ctx.accounts.token_mint;
 
-        let amount_to_burn = trove.amount_to_close * 1_000_000_000;
+        // let amount_to_burn = trove.amount_to_close * 1_000_000_000;
+        let amount_to_burn = trove.amount_to_close * 1_00;
+
 
         let burn_ctx = CpiContext::new(
             ctx.accounts.token_program.clone(),
@@ -497,7 +503,8 @@ pub mod nexfin {
             deposit.authority = *depositor.key;
         }
 
-        let amount_to_burn = amount * 1_000_000_000;
+        // let amount_to_burn = amount * 1_000_000_000;
+        let amount_to_burn = amount * 1_00;
     
         let burn_ctx = CpiContext::new(
             ctx.accounts.token_program.clone(),
@@ -547,7 +554,9 @@ pub mod nexfin {
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
 
-        token::mint_to(cpi_ctx, amount.checked_mul(1_000_000_000).ok_or(NexfinError::MathOverflow)?)?;
+        // token::mint_to(cpi_ctx, amount.checked_mul(1_000_000_000).ok_or(NexfinError::MathOverflow)?)?;
+        token::mint_to(cpi_ctx, amount.checked_mul(1_00).ok_or(NexfinError::MathOverflow)?)?;
+
 
         deposit.token_amount = deposit.token_amount.checked_sub(amount).ok_or(NexfinError::MathOverflow)?;
         msg!("the new deposit token amount is {}", deposit.token_amount);
@@ -669,7 +678,8 @@ pub mod nexfin {
         msg!("amount to close is {}", trove.amount_to_close);
         msg!("Calling the token program to transfer tokens to the escrow's initializer...");
 
-        let amount_to_burn = amount * 1_000_000_000;
+        // let amount_to_burn = amount * 1_000_000_000;
+        let amount_to_burn = amount * 1_00; // TODO only on devnet
         let burn_ctx = CpiContext::new(
             ctx.accounts.token_program.clone(),
             Burn {
