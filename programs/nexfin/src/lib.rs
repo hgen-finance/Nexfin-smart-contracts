@@ -28,11 +28,7 @@ pub const COLLATERAL_RATIO:i32 = 110;
 declare_id!("HPwvr8B9KtM3CZwQg7V8pevfgsZfZBLiR3gL1HcEsGiD");
 
 // TODO: Initialize the reserve(TVL) for the deposit
-// TODO: Check more for imporving code practices and security later
-// TODO: Need to add versioning to accounts (important for future changes !!!)
-// TODO: Use bytemuck to align buffer (Important!!)
-// TODO: Fix the stack offset (Important!!)
-
+// TODO: Need to add versioning to accounts 
 #[program]
 pub mod nexfin {
     use super::*;
@@ -130,7 +126,6 @@ pub mod nexfin {
             team_fee.sol_amount = team_fee.sol_amount.checked_add(team_fee_in_sol).ok_or(NexfinError::MathOverflow)?;
 
             // Mint
-            // TODO:  add a account to handle multiple tokens later
             let seeds:&[&[u8]; 2] = &[
                 b"mint-authority",
                 &[mint_account_bump]
@@ -213,7 +208,6 @@ pub mod nexfin {
             )?;
 
             // Mint
-            // TODO:  add a account to handle multiple tokens later
             let seeds:&[&[u8]; 2] = &[
                 b"mint-authority",
                 &[mint_account_bump]
@@ -336,7 +330,6 @@ pub mod nexfin {
 
 
         // Debit from_account and credit to_account
-        // TODO add check add and check sum
         **ctx.accounts.sol_trove.try_borrow_mut_lamports()? -= amount;
         **ctx.accounts.authority.try_borrow_mut_lamports()? += amount;
 
@@ -349,11 +342,7 @@ pub mod nexfin {
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Trove account
-    // TODO: Check for the admin authority
-    // TODO: Check if the admin matches in the cofig pda account
-    // TODO: Check if the config pda owner is the program account
     pub fn redeem_coin(ctx: Context<RedeemCoin>, amount: u64) -> ProgramResult {
-        // TODO: Check if the borrower is the signer
         let _borrower = &mut ctx.accounts.authority;
         let trove = &mut ctx.accounts.trove;
 
@@ -375,7 +364,6 @@ pub mod nexfin {
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Trove account
     /// 2. `[writable]` The Temp Account to get lamports
-    // TODO: Check if we are going to implement it later
     pub fn add_coin(ctx: Context<AddCoin>, amount: u64) -> ProgramResult {
         let _borrower = &mut ctx.accounts.authority;
         let trove = &mut ctx.accounts.trove;
@@ -408,29 +396,18 @@ pub mod nexfin {
     /// 4. `[]` User token acc
     /// 4. `[]` User governance token acc
     /// 5. `[]` Mint Token key
-    // TODO: Add a pda for burning tokens
-    // TODO: check for rent expemption on deposit account
-    // TODO (done): Check depositor is signer
-    // TODO: Check the authority key is signer (use pda)
-    // TODO (done): Check the owner of the authority key matches the owner in the deposit account
-    // TODO (done): Check if the token program passed is valid
-    // TODO: Add a config account to check for the authority
-    // TODO: Check if the depositor has sufficent amount of token in the wallet (redundant)
+   
     // TODO: Add admin as a signer
     // TODO: Check admin pubkey with the config account admin field
-    // TODO: check if the config account is owned by the solana program
-    // TODO: Check if the user has enough amount of gens in wallet
     pub fn add_deposit(ctx: Context<AddDeposit>, amount: u64, deposit_account_bump: u8) -> ProgramResult {
         let depositor = &mut ctx.accounts.authority;
         let deposit = &mut ctx.accounts.deposit_account;
+      
+        let rent = &Rent::from_account_info(&deposit.to_account_info())?;
 
-        //TODO: add this later
-        // let deposit_account = &deposit.to_account_info();
-        // let rent = &Rent::from_account_info(deposit_account)?;
-
-        // if !rent.is_exempt(deposit_account.lamports(), deposit_account.data_len()) {
-        //     return Err(NexfinError::NotRentExempt.into());
-        // }
+        if !rent.is_exempt(deposit.to_account_info().lamports(), deposit.to_account_info().data_len()) {
+            return Err(NexfinError::NotRentExempt.into());
+        }
 
         let temp_pda_token = &mut ctx.accounts.user_token;
         let temp_governance_token = &mut ctx.accounts.user_gov_token;
@@ -468,9 +445,6 @@ pub mod nexfin {
         Ok(())
     }
 
-    // TODO: Who's  deposit owner, how to map a depositor to deposit (Hung)
-    // TODO: Add a withdraw info account to check for the authroity and accounts
-    // TODO: Add a admin as a signer
     ///  Withdraw deposit
     ///
     /// Accounts expected:
@@ -485,8 +459,6 @@ pub mod nexfin {
         }
 
         // Mint
-        //TODO: need to burn the other token in the deposit wallet
-        // TODO:  add a account to handle multiple tokens later
         let seeds:&[&[u8]; 2] = &[
             b"mint-authority",
             &[mint_account_bump]
@@ -504,7 +476,6 @@ pub mod nexfin {
         // token::mint_to(cpi_ctx, amount.checked_mul(1_000_000_000).ok_or(NexfinError::MathOverflow)?)?;
         token::mint_to(cpi_ctx, amount.checked_mul(1_00).ok_or(NexfinError::MathOverflow)?)?;
 
-
         deposit.token_amount = deposit.token_amount.checked_sub(amount).ok_or(NexfinError::MathOverflow)?;
         msg!("the new deposit token amount is {}", deposit.token_amount);
 
@@ -517,9 +488,7 @@ pub mod nexfin {
     ///
     /// 0. `[signer]` The account of the person taking the trade
     /// 1. `[writable]` The Deposit account
-    // TODO: check if the deposit owner matches the depositor
-    // TODO: Add a withdraw info account to check for the authroity and accounts
-    // TODO: Add a admin as a signer
+    //TODO: change the pool share and token deposit after the claim depending on the sol received
     pub fn claim_deposit_reward(ctx: Context<ClaimDepositReward>, mint_account_bump: u8, _deposit_account_bump: u8, _reward_vault_bump: u8) -> ProgramResult {
         let deposit = &mut ctx.accounts.deposit;
 
@@ -559,9 +528,6 @@ pub mod nexfin {
     /// 0. `[signer]` Sys acc
     /// 1. `[writable]` The Trove account
     pub fn receive_trove(ctx: Context<ReceiveTrove>, _trove_account: Pubkey) -> ProgramResult {
-        // TODO: change sys account to the admin account
-        // TODO: Check if the admin account matches the config info in pda account
-        // TODO: Check if the config pda owner is the program
         let trove =  &mut ctx.accounts.trove;
         if trove.is_liquidated {
             return Err(NexfinError::TroveAlreadyLiquidated.into());
@@ -578,18 +544,12 @@ pub mod nexfin {
     ///
     /// 0. `[signer]` Sys acc
     /// 1. `[writable]` The Deposit account
-    // TODO: Check if the depositor matches the account in the deposit account
     pub fn add_deposit_reward(
         ctx: Context<AddDepositReward>,
         coin: u64,
         governance: u64,
         token: u64,
     ) -> ProgramResult {
-        // TODO: check if the admin account is the signer
-        // TODO: check if the deposit account is owned by the program
-        // TODO: check if the admin account matches the config info
-        // TODO: Check if the owner of the config info pda is the program
-        // TODO: Retrive the rewards authority info
         let deposit =  &mut ctx.accounts.deposit;
 
         deposit.reward_coin_amount = deposit.reward_coin_amount.checked_add(coin).ok_or(NexfinError::MathOverflow)?;
@@ -655,7 +615,6 @@ pub mod nexfin {
         Ok(())
     }
 
-    // TODO: function to create config
     pub fn initialize_config(ctx: Context<InitializeConfig>, _config_account_bump: u8, bump:u8, is_initialized:bool, mint_account_authority: Pubkey, admin_account_authority: Pubkey) -> ProgramResult {
         ctx.accounts.config_account.bump = bump;
         ctx.accounts.config_account.is_initialized = is_initialized;
@@ -698,7 +657,10 @@ pub struct LoadPrice<'info> {
 #[instruction(coin: u64, governance: u64, token: u64)]
 pub struct AddDepositReward<'info> {
     #[account(mut)]
-    pub admin_account_authority: Signer<'info>,
+    pub authority: Signer<'info>,
+
+    #[account(mut, has_one = authority, seeds = [b"admin".as_ref(), authority.key().as_ref()], bump = admin_account_authority.bump)]
+    pub admin_account_authority: Account<'info, Admin>,
 
     #[account(mut, has_one = admin_account_authority, seeds = [b"config".as_ref(), admin_account_authority.key().to_bytes().as_ref()], bump = config.bump)]
     pub config: Account<'info, Config>,
@@ -752,7 +714,6 @@ pub struct ClaimDepositReward<'info> {
     pub system_program: Program<'info, System>,
 }
 
-// TODO: Check if the bump matches later for deposit acc
 #[derive(Accounts)]
 #[instruction(amount: u64, mint_account_bump: u8, deposit_account_bump: u8)]
 pub struct WithdrawDeposit<'info> {
@@ -781,7 +742,6 @@ pub struct WithdrawDeposit<'info> {
 
 }
 
-// TODO: Check if the bump matches deposit for trove acc
 #[derive(Accounts)]
 #[instruction(amount: u64, deposit_account_bump: u8)]
 pub struct AddDeposit<'info> {
@@ -854,7 +814,6 @@ pub struct RedeemCoin<'info> {
     pub trove: ProgramAccount<'info, Trove>,
 }
 
-// TODO: Check if the bump matches later for trove acc
 #[derive(Accounts)]
 pub struct UpdateTrove<'info> {
     #[account(signer, mut)]
@@ -877,7 +836,6 @@ pub struct UpdateTrove<'info> {
     pub token_mint: Account<'info, Mint>,
 }
 
-// TODO: Check if the bump matches later for trove acc
 #[derive(Accounts)]
 #[instruction(sol_account_bump:u8)]
 pub struct CloseTrove<'info> {
@@ -911,10 +869,8 @@ pub struct LiquidateTrove<'info> {
     #[account(
         mut,
         has_one = authority,
-        seeds = [
-            b"admin",
-        ],
-        bump = admin.bump,
+        seeds = [b"admin".as_ref(), authority.key().as_ref()],
+        bump = admin_account_authority.bump,
     )]
     pub admin_account_authority: Account<'info, Admin>,
     
@@ -1075,7 +1031,15 @@ pub struct InitializeAdmin<'info> {
 #[derive(Accounts)]
 pub struct ChangeConfig<'info>{
     #[account(mut)]
-    pub admin_account_authority: Signer<'info>,
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority,
+        seeds = [b"admin".as_ref(), authority.key().as_ref()],
+        bump = admin_account_authority.bump,
+    )]
+    pub admin_account_authority: Account<'info, Admin>,
 
     // Info: can validate that pda account is created by the different using seeds:program
     #[account(mut, seeds = [b"config".as_ref(), config_account.admin_account_authority.key().to_bytes().as_ref()], bump = config_account.bump, has_one = admin_account_authority)]
